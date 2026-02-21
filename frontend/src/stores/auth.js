@@ -7,28 +7,27 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const loading = ref(false)
 
-  const isAuthenticated = computed(() => !!user.value)
+  const isAuth = computed(() => !!user.value)
   const isStudent = computed(() => user.value?.role === 'student')
   const isCompany = computed(() => user.value?.role === 'company')
   const isAdmin = computed(() => user.value?.role === 'admin')
   const isCommittee = computed(() => user.value?.role === 'committee')
 
   async function fetchUser() {
-    const token = localStorage.getItem('access_token')
-    if (!token) return
+    if (!localStorage.getItem('access_token')) return
     try {
       loading.value = true
-      const { data } = await authAPI.getMe()
+      const { data } = await authAPI.me()
       user.value = data
     } catch {
-      logout()
+      logout(false)
     } finally {
       loading.value = false
     }
   }
 
-  async function login(credentials) {
-    const { data } = await authAPI.login(credentials)
+  async function login(creds) {
+    const { data } = await authAPI.login(creds)
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
     await fetchUser()
@@ -40,15 +39,15 @@ export const useAuthStore = defineStore('auth', () => {
     await login({ username: payload.username, password: payload.password })
   }
 
-  function logout() {
+  async function logout(callApi = true) {
+    if (callApi) {
+      try { await authAPI.logout() } catch { /* ignore */ }
+    }
     user.value = null
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     router.push('/login')
   }
 
-  return {
-    user, loading, isAuthenticated, isStudent, isCompany, isAdmin, isCommittee,
-    fetchUser, login, register, logout
-  }
+  return { user, loading, isAuth, isStudent, isCompany, isAdmin, isCommittee, fetchUser, login, register, logout }
 })

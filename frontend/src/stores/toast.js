@@ -1,23 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-let id = 0
-
+let _id = 0
 export const useToastStore = defineStore('toast', () => {
   const toasts = ref([])
-
   function add(message, type = 'success') {
-    const toast = { id: ++id, message, type }
-    toasts.value.push(toast)
-    setTimeout(() => remove(toast.id), 4000)
+    const t = { id: ++_id, message, type }
+    toasts.value.push(t)
+    setTimeout(() => { toasts.value = toasts.value.filter(x => x.id !== t.id) }, 4000)
   }
-
-  function remove(toastId) {
-    toasts.value = toasts.value.filter(t => t.id !== toastId)
-  }
-
-  function success(msg) { add(msg, 'success') }
-  function error(msg) { add(msg, 'error') }
-
-  return { toasts, add, remove, success, error }
+  return { toasts, success: m => add(m, 'success'), error: m => add(m, 'error') }
 })
