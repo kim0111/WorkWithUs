@@ -2,36 +2,28 @@
   <nav class="navbar">
     <div class="navbar-inner container">
       <router-link to="/dashboard" class="nav-brand">
-        <span class="brand-icon">N</span>
+        <div class="brand-mark">N</div>
         <span class="brand-text">NexusHub</span>
       </router-link>
 
       <div class="nav-links">
-        <router-link to="/projects" class="nav-link">
-          <span class="material-icons-round">explore</span>Projects
-        </router-link>
-        <router-link v-if="auth.isStudent" to="/my-applications" class="nav-link">
-          <span class="material-icons-round">send</span>Applications
-        </router-link>
-        <router-link v-if="auth.isCompany || auth.isAdmin || auth.isStudent" to="/projects/create" class="nav-link">
-          <span class="material-icons-round">add_circle</span>New Project
-        </router-link>
-        <router-link v-if="auth.isAuth" to="/chat" class="nav-link">
-          <span class="material-icons-round">chat</span>Chat
-        </router-link>
-        <router-link v-if="auth.isAdmin" to="/admin" class="nav-link">
-          <span class="material-icons-round">admin_panel_settings</span>Admin
-        </router-link>
+        <router-link to="/projects" class="nav-link">Projects</router-link>
+        <router-link v-if="auth.isStudent" to="/my-applications" class="nav-link">Applications</router-link>
+        <router-link v-if="auth.isCompany || auth.isAdmin || auth.isStudent" to="/projects/create" class="nav-link">New Project</router-link>
+        <router-link v-if="auth.isAuth" to="/chat" class="nav-link">Chat</router-link>
+        <router-link v-if="auth.isAdmin" to="/admin" class="nav-link">Admin</router-link>
       </div>
 
       <div class="nav-right">
+        <button class="nav-icon-btn" @click="theme.toggle()" :title="theme.dark ? 'Switch to light mode' : 'Switch to dark mode'">
+          <span class="material-icons-round">{{ theme.dark ? 'light_mode' : 'dark_mode' }}</span>
+        </button>
         <router-link to="/notifications" class="nav-icon-btn" title="Notifications">
-          <span class="material-icons-round">notifications</span>
-          <span v-if="unread > 0" class="notif-badge">{{ unread > 9 ? '9+' : unread }}</span>
+          <span class="material-icons-round">notifications_none</span>
+          <span v-if="unread > 0" class="notif-dot">{{ unread > 9 ? '9+' : unread }}</span>
         </router-link>
         <div class="nav-user" @click="showMenu = !showMenu" ref="menuRef">
           <div class="user-avatar">{{ (auth.user?.full_name || auth.user?.username || 'U')[0].toUpperCase() }}</div>
-          <span class="user-name">{{ auth.user?.username }}</span>
           <span class="material-icons-round chevron">expand_more</span>
           <transition name="fade">
             <div v-if="showMenu" class="dropdown-menu">
@@ -53,9 +45,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 import { notificationsAPI } from '@/api'
 
 const auth = useAuthStore()
+const theme = useThemeStore()
 const showMenu = ref(false)
 const menuRef = ref(null)
 const unread = ref(0)
@@ -78,31 +72,64 @@ function handleLogout() { showMenu.value = false; auth.logout() }
 </script>
 
 <style scoped>
-.navbar{position:fixed;top:0;left:0;right:0;height:72px;background:rgba(12,12,14,.85);backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid var(--border);z-index:100}
-.navbar-inner{display:flex;align-items:center;height:100%;gap:32px}
-.nav-brand{display:flex;align-items:center;gap:10px;color:var(--text-primary);text-decoration:none}
-.brand-icon{display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--accent);color:var(--text-inverse);border-radius:var(--radius-md);font-family:var(--font-display);font-weight:800;font-size:1.2rem}
-.brand-text{font-family:var(--font-display);font-size:1.2rem;font-weight:700}
-.nav-links{display:flex;gap:4px}
-.nav-link{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-full);color:var(--text-secondary);font-size:.875rem;font-weight:500;text-decoration:none;transition:all .2s var(--ease)}
-.nav-link .material-icons-round{font-size:18px}
-.nav-link:hover,.nav-link.router-link-active{color:var(--text-primary);background:var(--bg-card)}
-.nav-link.router-link-active{color:var(--accent)}
-.nav-right{margin-left:auto;display:flex;align-items:center;gap:8px}
-.nav-icon-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:var(--radius-full);color:var(--text-secondary);transition:all .2s var(--ease)}
-.nav-icon-btn:hover{background:var(--bg-card);color:var(--text-primary)}
-.notif-badge{position:absolute;top:2px;right:2px;min-width:18px;height:18px;background:var(--danger);color:#fff;font-size:.65rem;font-weight:700;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
-.nav-user{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--radius-full);cursor:pointer;position:relative;transition:background .2s var(--ease)}
-.nav-user:hover{background:var(--bg-card)}
-.user-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#d4822a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;color:var(--text-inverse)}
-.user-name{font-size:.875rem;font-weight:500;color:var(--text-primary)}
-.chevron{font-size:18px;color:var(--text-muted)}
-.dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg-secondary);border:1px solid var(--border-strong);border-radius:var(--radius-lg);padding:6px;min-width:200px;box-shadow:var(--shadow-lg)}
-.dropdown-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-md);font-size:.875rem;color:var(--text-secondary);text-decoration:none;transition:all .15s var(--ease);border:none;background:none;width:100%;cursor:pointer;font-family:var(--font-body)}
-.dropdown-item:hover{background:var(--bg-card);color:var(--text-primary)}
-.dropdown-item .material-icons-round{font-size:18px}
-.dropdown-item.danger{color:var(--danger)}
-.dropdown-item.danger:hover{background:rgba(248,113,113,.08)}
-.dropdown-divider{height:1px;background:var(--border);margin:4px 0}
-@media(max-width:768px){.nav-links{display:none}.user-name{display:none}}
+.navbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 56px;
+  background: var(--white); border-bottom: 1px solid var(--gray-200); z-index: 100;
+}
+.navbar-inner { display: flex; align-items: center; height: 100%; gap: 32px; }
+.nav-brand { display: flex; align-items: center; gap: 8px; color: var(--gray-900); text-decoration: none; }
+.brand-mark {
+  width: 28px; height: 28px; background: var(--accent); color: white;
+  border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .8rem;
+}
+.brand-text { font-size: .9375rem; font-weight: 600; }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  padding: 6px 12px; border-radius: var(--radius-md); color: var(--gray-500);
+  font-size: .8125rem; font-weight: 500; text-decoration: none; transition: all .15s ease;
+}
+.nav-link:hover { color: var(--gray-900); background: var(--gray-100); }
+.nav-link.router-link-active { color: var(--accent-text); background: var(--accent-light); }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.nav-icon-btn {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--radius-md); color: var(--gray-500); transition: all .15s ease;
+  background: none; border: none; cursor: pointer; font-family: var(--font);
+}
+.nav-icon-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+.notif-dot {
+  position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px;
+  background: var(--danger); color: white; font-size: .6rem; font-weight: 600;
+  border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px;
+}
+.nav-user {
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  border-radius: var(--radius-md); cursor: pointer; position: relative; transition: background .15s ease;
+}
+.nav-user:hover { background: var(--gray-100); }
+.user-avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: .75rem; color: white;
+}
+.chevron { font-size: 18px; color: var(--gray-400); }
+.dropdown-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+  padding: 4px; min-width: 180px; box-shadow: var(--shadow-lg);
+}
+.dropdown-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-radius: var(--radius-md); font-size: .8125rem; color: var(--gray-700);
+  text-decoration: none; transition: all .1s ease; border: none; background: none;
+  width: 100%; cursor: pointer; font-family: var(--font);
+}
+.dropdown-item:hover { background: var(--gray-100); }
+.dropdown-item .material-icons-round { font-size: 16px; color: var(--gray-400); }
+.dropdown-item.danger { color: var(--danger); }
+.dropdown-item.danger .material-icons-round { color: var(--danger); }
+.dropdown-item.danger:hover { background: var(--danger-light); }
+.dropdown-divider { height: 1px; background: var(--gray-200); margin: 4px 0; }
+@media (max-width: 768px) { .nav-links { display: none; } }
 </style>

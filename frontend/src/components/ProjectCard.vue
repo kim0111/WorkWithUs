@@ -1,7 +1,7 @@
 <template>
   <router-link :to="`/projects/${project.id}`" class="project-card card card-interactive">
-    <div class="card-header">
-      <div class="card-meta">
+    <div class="card-top">
+      <div class="card-badges">
         <span class="badge" :class="statusClass">{{ project.status }}</span>
         <span v-if="project.is_student_project" class="badge badge-teal">Student</span>
       </div>
@@ -16,7 +16,6 @@
     <div class="card-footer">
       <span class="footer-item"><span class="material-icons-round">group</span>{{ project.max_participants }} spots</span>
       <span v-if="project.deadline" class="footer-item"><span class="material-icons-round">schedule</span>{{ fmtDate(project.deadline) }}</span>
-      <span v-if="project.attachments?.length" class="footer-item"><span class="material-icons-round">attach_file</span>{{ project.attachments.length }} files</span>
     </div>
   </router-link>
 </template>
@@ -27,12 +26,14 @@ const statusClass = computed(() => ({ open:'badge-success', in_progress:'badge-w
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '' }
 </script>
 <style scoped>
-.project-card{display:flex;flex-direction:column;gap:14px;text-decoration:none;color:inherit}
-.card-header{display:flex;justify-content:space-between;align-items:center}.card-meta{display:flex;gap:6px}
-.card-date{font-size:.78rem;color:var(--text-muted);font-family:var(--font-mono)}
-.card-title{font-size:1.2rem;line-height:1.3}.card-desc{font-size:.9rem;color:var(--text-secondary);line-height:1.5}
-.card-skills{display:flex;flex-wrap:wrap;gap:6px}
-.card-footer{display:flex;gap:20px;padding-top:12px;border-top:1px solid var(--border);margin-top:auto}
-.footer-item{display:flex;align-items:center;gap:5px;font-size:.82rem;color:var(--text-muted)}
-.footer-item .material-icons-round{font-size:16px}
+.project-card { display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; min-width: 0; overflow: hidden; }
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.card-badges { display: flex; gap: 6px; }
+.card-date { font-size: .75rem; color: var(--gray-400); }
+.card-title { font-size: 1rem; line-height: 1.4; color: var(--gray-900); overflow-wrap: break-word; word-break: break-word; }
+.card-desc { font-size: .8125rem; color: var(--gray-500); line-height: 1.5; overflow-wrap: break-word; word-break: break-word; }
+.card-skills { display: flex; flex-wrap: wrap; gap: 4px; }
+.card-footer { display: flex; gap: 16px; padding-top: 10px; border-top: 1px solid var(--gray-100); margin-top: auto; }
+.footer-item { display: flex; align-items: center; gap: 4px; font-size: .75rem; color: var(--gray-400); }
+.footer-item .material-icons-round { font-size: 14px; }
 </style>

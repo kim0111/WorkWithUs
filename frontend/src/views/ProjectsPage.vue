@@ -3,7 +3,7 @@
     <header class="page-header">
       <div>
         <h1>Projects</h1>
-        <p class="page-subtitle">{{ total }} projects available</p>
+        <p class="page-sub">{{ total }} projects available</p>
       </div>
       <router-link v-if="auth.isAuth" to="/projects/create" class="btn btn-primary">
         <span class="material-icons-round">add</span>New Project
@@ -89,17 +89,17 @@ onMounted(fetchProjects)
 </script>
 
 <style scoped>
-.page { padding: 2rem; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
-.page-subtitle { color: var(--text-muted); font-size: .9rem; margin-top: 4px; }
-.filters-bar { display: flex; gap: 14px; margin-bottom: 2rem; flex-wrap: wrap; }
-.search-box { flex: 1; min-width: 250px; position: relative; display: flex; align-items: center; }
-.search-box .material-icons-round { position: absolute; left: 14px; color: var(--text-muted); font-size: 20px; }
-.search-box .input { padding-left: 42px; width: 100%; }
-.filter-group { display: flex; gap: 10px; }
-.select { min-width: 150px; cursor: pointer; }
-.projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
-.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 2rem; }
-.page-info { font-size: .9rem; color: var(--text-secondary); font-family: var(--font-mono); }
+.page { padding: 2rem 24px; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+.page-sub { color: var(--gray-400); font-size: .8125rem; margin-top: 2px; }
+.filters-bar { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.search-box { flex: 1; min-width: 220px; position: relative; display: flex; align-items: center; }
+.search-box .material-icons-round { position: absolute; left: 12px; color: var(--gray-400); font-size: 18px; }
+.search-box .input { padding-left: 36px; width: 100%; }
+.filter-group { display: flex; gap: 8px; }
+.select { min-width: 140px; }
+.projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 1.5rem; }
+.page-info { font-size: .8125rem; color: var(--gray-500); }
 .loading-center { display: flex; justify-content: center; padding: 4rem; }
 </style>

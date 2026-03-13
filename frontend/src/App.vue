@@ -16,10 +16,12 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppNavbar from '@/components/AppNavbar.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
+import { useThemeStore } from '@/stores/theme'
 const route = useRoute()
+const theme = useThemeStore()
 const showNav = computed(() => !['Login','Register','Home'].includes(route.name))
 </script>
 <style scoped>
-.app{min-height:100vh}
-.main-content.with-navbar{padding-top:72px}
+.app { min-height: 100vh; }
+.main-content.with-navbar { padding-top: 56px; }
 </style>

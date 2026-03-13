@@ -3,12 +3,12 @@
     <!-- Header -->
     <div class="detail-header">
       <div>
-        <div class="detail-meta">
+        <div class="detail-badges">
           <span class="badge" :class="statusBadge">{{ project.status }}</span>
           <span v-if="project.is_student_project" class="badge badge-teal">Student Project</span>
         </div>
         <h1>{{ project.title }}</h1>
-        <div class="detail-info">
+        <div class="detail-meta">
           <span><span class="material-icons-round">person</span>Owner #{{ project.owner_id }}</span>
           <span><span class="material-icons-round">group</span>{{ project.max_participants }} spots</span>
           <span v-if="project.deadline"><span class="material-icons-round">schedule</span>{{ fmtDate(project.deadline) }}</span>
@@ -40,9 +40,9 @@
       </div>
     </section>
 
-    <!-- Project Files (ТЗ / Attachments) -->
+    <!-- Project Files -->
     <section class="detail-section">
-      <h2><span class="material-icons-round">attach_file</span>Project Files</h2>
+      <h2>Project Files</h2>
       <div v-if="attachments.length" class="files-list">
         <div v-for="f in attachments" :key="f.id" class="file-item">
           <span class="material-icons-round">description</span>
@@ -58,12 +58,12 @@
       <FileUpload v-if="isOwner" @file="uploadAttachment" accept="*" />
     </section>
 
-    <!-- Student Submissions -->
+    <!-- Submissions -->
     <section v-if="isOwner || isApplicant" class="detail-section">
-      <h2><span class="material-icons-round">cloud_upload</span>Submissions</h2>
+      <h2>Submissions</h2>
       <div v-if="submissions.length" class="files-list">
         <div v-for="f in submissions" :key="f.id" class="file-item">
-          <span class="material-icons-round">assignment_turned_in</span>
+          <span class="material-icons-round">task</span>
           <div class="file-info">
             <span class="file-name">{{ f.filename }}</span>
             <span class="file-meta">{{ formatSize(f.file_size) }} &middot; {{ fmtDate(f.created_at) }}</span>
@@ -75,7 +75,7 @@
       <FileUpload v-if="isApplicant" @file="uploadSubmission" accept="*" />
     </section>
 
-    <!-- Apply Section (students only) -->
+    <!-- Apply -->
     <section id="apply-section" v-if="auth.isStudent && project.status === 'open' && !isOwner && !myApp" class="detail-section">
       <h2>Apply to this Project</h2>
       <form @submit.prevent="apply" class="apply-form">
@@ -84,7 +84,7 @@
       </form>
     </section>
 
-    <!-- My Application Status (applicant view) -->
+    <!-- My Application Status -->
     <section v-if="myApp" class="detail-section">
       <h2>Your Application</h2>
       <div class="app-status-card">
@@ -96,8 +96,6 @@
         <p v-if="myApp.revision_note" class="revision-note">
           <span class="material-icons-round">edit_note</span>Revision: {{ myApp.revision_note }}
         </p>
-
-        <!-- Applicant workflow actions -->
         <div class="app-actions">
           <button v-if="myApp.status === 'accepted'" class="btn btn-primary btn-sm" @click="updateMyApp('in_progress')">
             <span class="material-icons-round">play_arrow</span>Start Working
@@ -109,16 +107,13 @@
             </button>
           </div>
         </div>
-
-        <!-- Chat link -->
-        <button v-if="myApp.status !== 'rejected'"
-                class="btn btn-secondary btn-sm" @click="openChat">
-          <span class="material-icons-round">chat</span>Message Owner
+        <button v-if="myApp.status !== 'rejected'" class="btn btn-secondary btn-sm" @click="openChat">
+          <span class="material-icons-round">chat_bubble_outline</span>Message Owner
         </button>
       </div>
     </section>
 
-    <!-- Applications List (owner view) -->
+    <!-- Applications List (owner) -->
     <section v-if="isOwner" class="detail-section">
       <h2>Applications ({{ applications.length }})</h2>
       <div v-if="applications.length" class="apps-list">
@@ -132,50 +127,34 @@
           </div>
           <p v-if="a.cover_letter" class="text-secondary app-cl">{{ a.cover_letter }}</p>
           <p v-if="a.submission_note" class="text-secondary"><strong>Submission:</strong> {{ a.submission_note }}</p>
-
-          <!-- Owner workflow actions -->
           <div class="app-actions">
             <template v-if="a.status === 'pending'">
               <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'accepted')">Accept</button>
               <button class="btn btn-danger btn-sm" @click="updateApp(a.id, 'rejected')">Reject</button>
             </template>
             <template v-if="a.status === 'submitted'">
-              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'approved')">
-                <span class="material-icons-round">check</span>Approve
-              </button>
+              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'approved')">Approve</button>
               <div class="revision-input">
                 <input class="input" v-model="revisionNotes[a.id]" placeholder="Revision note..." />
-                <button class="btn btn-outline btn-sm" @click="updateApp(a.id, 'revision_requested', revisionNotes[a.id])">
-                  Request Revision
-                </button>
+                <button class="btn btn-outline btn-sm" @click="updateApp(a.id, 'revision_requested', revisionNotes[a.id])">Request Revision</button>
               </div>
             </template>
             <template v-if="a.status === 'approved'">
-              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'completed')">
-                <span class="material-icons-round">done_all</span>Mark Completed
-              </button>
+              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'completed')">Mark Completed</button>
             </template>
-
-            <!-- Review after completion -->
             <template v-if="a.status === 'completed' || a.status === 'approved'">
               <div v-if="!reviewedApps.has(a.id)" class="review-form">
                 <h4>Leave Review</h4>
                 <div class="star-select">
-                  <button v-for="n in 5" :key="n" class="star-btn" :class="{ active: (reviewData[a.id]?.rating || 0) >= n }"
-                          @click="setRating(a.id, n)">★</button>
+                  <button v-for="n in 5" :key="n" class="star-btn" :class="{ active: (reviewData[a.id]?.rating || 0) >= n }" @click="setRating(a.id, n)">&#9733;</button>
                 </div>
                 <input class="input" v-model="reviewComments[a.id]" placeholder="Comment..." />
-                <button class="btn btn-primary btn-sm" @click="submitReview(a.id, a.applicant_id)">
-                  Submit Review
-                </button>
+                <button class="btn btn-primary btn-sm" @click="submitReview(a.id, a.applicant_id)">Submit Review</button>
               </div>
-              <span v-else class="text-muted">✓ Reviewed</span>
+              <span v-else class="text-muted">Reviewed</span>
             </template>
-
-            <!-- Chat with applicant -->
-            <button v-if="a.status !== 'rejected'" class="btn btn-ghost btn-sm"
-                    @click="openChatWith(a.applicant_id)">
-              <span class="material-icons-round">chat</span>Chat
+            <button v-if="a.status !== 'rejected'" class="btn btn-ghost btn-sm" @click="openChatWith(a.applicant_id)">
+              <span class="material-icons-round">chat_bubble_outline</span>Chat
             </button>
           </div>
         </div>
@@ -215,7 +194,6 @@ const reviewedApps = ref(new Set())
 const isOwner = computed(() => auth.user && project.value?.owner_id === auth.user.id)
 const isAdmin = computed(() => auth.isAdmin)
 const isApplicant = computed(() => !!myApp.value && ['accepted', 'in_progress', 'submitted', 'revision_requested'].includes(myApp.value.status))
-
 const statusBadge = computed(() => ({ open: 'badge-success', in_progress: 'badge-warning', closed: 'badge-danger' }[project.value?.status]))
 
 function appStatusBadge(s) {
@@ -298,10 +276,20 @@ async function uploadSubmission(file) {
   } catch (e) { toast.error(e.response?.data?.detail || 'Upload failed') }
 }
 
-async function downloadFile(id) {
+async function downloadFile(fileId) {
   try {
-    const { data } = await filesAPI.download(id)
-    window.open(data.download_url, '_blank')
+    const response = await filesAPI.download(fileId)
+    const disposition = response.headers['content-disposition'] || ''
+    const match = disposition.match(/filename="?(.+?)"?$/)
+    const filename = match ? match[1] : 'download'
+    const url = URL.createObjectURL(response.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   } catch { toast.error('Download failed') }
 }
 
@@ -347,62 +335,55 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page { padding: 2rem; }
-.detail-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 2rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
-.detail-meta { display: flex; gap: 8px; margin-bottom: 8px; }
-.detail-info { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
-.detail-info > span { display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--text-muted); }
-.detail-info .material-icons-round { font-size: 16px; }
-.detail-actions { display: flex; gap: 10px; align-items: center; }
-.detail-section { margin-bottom: 2.5rem; }
-.detail-section h2 { display: flex; align-items: center; gap: 8px; font-size: 1.3rem; margin-bottom: 1rem; }
-.detail-section h2 .material-icons-round { font-size: 22px; color: var(--accent); }
-.detail-desc { color: var(--text-secondary); line-height: 1.8; white-space: pre-wrap; margin-bottom: 1rem; }
-.skills-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.page { padding: 2rem 24px; }
+.detail-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 1.5rem; border-bottom: 1px solid var(--gray-200); margin-bottom: 1.5rem; }
+.detail-badges { display: flex; gap: 6px; margin-bottom: 8px; }
+.detail-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+.detail-meta > span { display: flex; align-items: center; gap: 4px; font-size: .8125rem; color: var(--gray-400); }
+.detail-meta .material-icons-round { font-size: 15px; }
+.detail-actions { display: flex; gap: 8px; align-items: center; }
+.detail-section { margin-bottom: 2rem; overflow: hidden; }
+.detail-section h2 { font-size: 1.1rem; margin-bottom: .75rem; }
+.detail-desc { color: var(--gray-600); line-height: 1.7; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; margin-bottom: .75rem; font-size: .875rem; }
+.skills-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* Files */
-.files-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
-.file-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); }
-.file-item > .material-icons-round { font-size: 24px; color: var(--accent); }
+.files-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: .75rem; }
+.file-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); }
+.file-item > .material-icons-round { font-size: 20px; color: var(--accent); }
 .file-info { flex: 1; }
-.file-name { font-weight: 500; font-size: .9rem; display: block; }
-.file-meta { font-size: .78rem; color: var(--text-muted); }
+.file-name { font-weight: 500; font-size: .8125rem; display: block; }
+.file-meta { font-size: .75rem; color: var(--gray-400); }
 
-/* Apply */
-.apply-form { display: flex; flex-direction: column; gap: 12px; max-width: 600px; }
+.apply-form { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
 
-/* Application status */
-.app-status-card { padding: 20px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 12px; }
+.app-status-card { padding: 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 10px; }
 .app-status-row { display: flex; justify-content: space-between; align-items: center; }
-.revision-note { display: flex; align-items: center; gap: 8px; color: var(--warning); font-size: .9rem; padding: 10px 14px; background: rgba(251, 191, 36, .06); border-radius: var(--radius-md); }
-.submit-work { display: flex; gap: 10px; align-items: center; }
+.revision-note { display: flex; align-items: center; gap: 6px; color: var(--warning); font-size: .8125rem; padding: 8px 12px; background: var(--warning-light); border-radius: var(--radius-md); }
+.submit-work { display: flex; gap: 8px; align-items: center; }
 
-/* Applications list */
-.apps-list { display: flex; flex-direction: column; gap: 14px; }
-.app-card { padding: 20px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
-.app-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.app-user-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text-primary); font-weight: 500; }
-.av-sm { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #d4822a); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8rem; color: var(--text-inverse); }
-.app-cl { font-size: .9rem; margin-bottom: 8px; }
-.app-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
-.revision-input { display: flex; gap: 8px; align-items: center; }
-.revision-input .input { min-width: 200px; }
+.apps-list { display: flex; flex-direction: column; gap: 12px; }
+.app-card { padding: 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); }
+.app-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.app-user-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--gray-900); font-weight: 500; font-size: .875rem; }
+.av-sm { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: .7rem; color: white; }
+.app-cl { font-size: .8125rem; margin-bottom: 6px; }
+.app-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.revision-input { display: flex; gap: 6px; align-items: center; }
+.revision-input .input { min-width: 180px; }
 
-/* Review */
-.review-form { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border); }
-.review-form h4 { font-size: .9rem; font-family: var(--font-body); }
-.star-select { display: flex; gap: 4px; }
-.star-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); transition: color .15s; }
-.star-btn.active { color: var(--accent); }
-.star-btn:hover { color: var(--accent); }
+.review-form { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200); }
+.review-form h4 { font-size: .8125rem; }
+.star-select { display: flex; gap: 2px; }
+.star-btn { background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--gray-300); transition: color .1s; }
+.star-btn.active { color: var(--warning); }
+.star-btn:hover { color: var(--warning); }
 
-.text-muted { color: var(--text-muted); font-size: .9rem; }
-.text-secondary { color: var(--text-secondary); font-size: .9rem; }
+.text-muted { color: var(--gray-400); font-size: .8125rem; }
+.text-secondary { color: var(--gray-600); font-size: .8125rem; }
 .loading-center { display: flex; justify-content: center; padding: 6rem; }
 
 @media (max-width: 768px) {
-  .detail-header { flex-direction: column; gap: 1rem; }
-  .detail-actions { width: 100%; }
+  .detail-header { flex-direction: column; gap: .75rem; }
   .submit-work { flex-direction: column; }
   .revision-input { flex-direction: column; }
 }

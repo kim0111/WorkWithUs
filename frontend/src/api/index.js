@@ -41,7 +41,12 @@ export default api
 // ── Auth ────────────────────────────────────────────
 export const authAPI = {
   register: d => api.post('/auth/register', d),
-  login: d => api.post('/auth/login', d),
+  login: d => {
+    const params = new URLSearchParams()
+    params.append('username', d.username)
+    params.append('password', d.password)
+    return api.post('/auth/login', params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+  },
   me: () => api.get('/auth/me'),
   refresh: t => api.post('/auth/refresh', { refresh_token: t }),
   logout: () => api.post('/auth/logout'),
@@ -88,7 +93,7 @@ export const filesAPI = {
     })
   },
   list: (projectId, fileType) => api.get(`/files/project/${projectId}`, { params: fileType ? { file_type: fileType } : {} }),
-  download: id => api.get(`/files/${id}/download`),
+  download: id => api.get(`/files/${id}/download`, { responseType: 'blob' }),
   delete: id => api.delete(`/files/${id}`),
 }
 

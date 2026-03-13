@@ -11,12 +11,9 @@
           <span class="badge" :class="statusBadge(a.status)">{{ a.status }}</span>
         </div>
         <p v-if="a.cover_letter" class="app-letter">{{ a.cover_letter }}</p>
-
-        <!-- Status-specific info -->
         <p v-if="a.submission_note" class="status-note"><span class="material-icons-round">send</span>{{ a.submission_note }}</p>
         <p v-if="a.revision_note" class="status-note revision"><span class="material-icons-round">edit_note</span>{{ a.revision_note }}</p>
 
-        <!-- Workflow progress -->
         <div class="workflow-bar">
           <div v-for="s in workflowSteps" :key="s" class="wf-step" :class="{ done: stepIndex(a.status) >= workflowSteps.indexOf(s), current: a.status === s }">
             <div class="wf-dot"></div>
@@ -44,40 +41,44 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { applicationsAPI } from '@/api'
-const apps = ref([]); const loading = ref(true)
+
+const apps = ref([])
+const loading = ref(true)
 const workflowSteps = ['pending', 'accepted', 'in_progress', 'submitted', 'approved', 'completed']
+
 function stepIndex(s) { const i = workflowSteps.indexOf(s); return i >= 0 ? i : (s === 'rejected' ? -1 : s === 'revision_requested' ? 3 : 0) }
 function statusBadge(s) {
-  return { pending:'badge-info', accepted:'badge-success', rejected:'badge-danger', in_progress:'badge-warning',
-    submitted:'badge-accent', revision_requested:'badge-warning', approved:'badge-success', completed:'badge-teal' }[s] || 'badge-info'
+  return { pending: 'badge-info', accepted: 'badge-success', rejected: 'badge-danger', in_progress: 'badge-warning',
+    submitted: 'badge-accent', revision_requested: 'badge-warning', approved: 'badge-success', completed: 'badge-teal' }[s] || 'badge-info'
 }
-function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '' }
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '' }
+
 onMounted(async () => { try { apps.value = (await applicationsAPI.my()).data } catch {} finally { loading.value = false } })
 </script>
 <style scoped>
-.page { padding: 2rem; }
-.apps-list { display: flex; flex-direction: column; gap: 16px; }
-.app-card { padding: 24px; }
-.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.app-project-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-primary); font-weight: 600; font-size: 1.05rem; }
-.app-project-link .material-icons-round { color: var(--accent); }
-.app-letter { color: var(--text-secondary); font-size: .9rem; margin-bottom: 12px; line-height: 1.5; }
-.status-note { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--text-secondary); padding: 8px 12px; background: var(--bg-secondary); border-radius: var(--radius-md); margin-bottom: 8px; }
-.status-note.revision { color: var(--warning); background: rgba(251,191,36,.06); }
-.status-note .material-icons-round { font-size: 18px; }
+.page { padding: 2rem 24px; }
+.page-header { margin-bottom: 1.5rem; }
+.apps-list { display: flex; flex-direction: column; gap: 12px; }
+.app-card { padding: 20px; }
+.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.app-project-link { display: flex; align-items: center; gap: 6px; text-decoration: none; color: var(--gray-900); font-weight: 500; font-size: .9375rem; }
+.app-project-link .material-icons-round { color: var(--accent); font-size: 18px; }
+.app-letter { color: var(--gray-600); font-size: .8125rem; margin-bottom: 10px; line-height: 1.5; }
+.status-note { display: flex; align-items: center; gap: 6px; font-size: .8125rem; color: var(--gray-600); padding: 6px 10px; background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 6px; }
+.status-note.revision { color: var(--warning); background: var(--warning-light); }
+.status-note .material-icons-round { font-size: 16px; }
 
-/* Workflow bar */
-.workflow-bar { display: flex; gap: 0; margin: 16px 0; overflow-x: auto; }
-.wf-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 70px; position: relative; }
-.wf-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--border-strong); transition: all .2s; z-index: 1; }
+.workflow-bar { display: flex; gap: 0; margin: 14px 0; overflow-x: auto; }
+.wf-step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 60px; position: relative; }
+.wf-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gray-100); border: 2px solid var(--gray-300); transition: all .15s; z-index: 1; }
 .wf-step.done .wf-dot { background: var(--accent); border-color: var(--accent); }
-.wf-step.current .wf-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim); }
-.wf-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; text-align: center; }
-.wf-step.done .wf-label, .wf-step.current .wf-label { color: var(--text-primary); font-weight: 600; }
-.wf-step:not(:last-child)::after { content: ''; position: absolute; top: 5px; left: calc(50% + 8px); right: calc(-50% + 8px); height: 2px; background: var(--border-strong); }
+.wf-step.current .wf-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+.wf-label { font-size: .625rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: .02em; text-align: center; }
+.wf-step.done .wf-label, .wf-step.current .wf-label { color: var(--gray-700); font-weight: 600; }
+.wf-step:not(:last-child)::after { content: ''; position: absolute; top: 4px; left: calc(50% + 7px); right: calc(-50% + 7px); height: 2px; background: var(--gray-200); }
 .wf-step.done:not(:last-child)::after { background: var(--accent); }
 
-.app-footer { display: flex; align-items: center; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.text-muted { color: var(--text-muted); font-size: .82rem; }
+.app-footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
+.text-muted { color: var(--gray-400); font-size: .75rem; }
 .loading-center { display: flex; justify-content: center; padding: 4rem; }
 </style>
