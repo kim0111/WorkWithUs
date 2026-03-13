@@ -1,13 +1,15 @@
+import io
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.postgres import get_db
 from src.core.dependencies import get_current_user
 from src.core.config import settings
-from src.core.minio_client import upload_file, get_file_url, delete_file
+from src.core.minio_client import upload_file, delete_file, download_file
 from src.users.models import User, RoleEnum
 from src.projects.models import ProjectFile
 from src.projects.router import ProjectRepository
@@ -92,31 +94,34 @@ async def list_project_files(
     result = await db.execute(query.order_by(ProjectFile.created_at.desc()))
     files = result.scalars().all()
 
-    # Add download URLs
     response = []
     for f in files:
-        bucket = settings.MINIO_BUCKET_PROJECTS if f.file_type == "attachment" else settings.MINIO_BUCKET_SUBMISSIONS
-        try:
-            url = get_file_url(bucket, f.object_name)
-        except Exception:
-            url = None
         data = FileResponse.model_validate(f)
-        data.download_url = url
+        data.download_url = f"{settings.API_PREFIX}/files/{f.id}/download"
         response.append(data)
     return response
 
 
 @router.get("/{file_id}/download")
-async def get_download_url(file_id: int, db: AsyncSession = Depends(get_db),
-                           current_user: User = Depends(get_current_user)):
+async def download_project_file(file_id: int, db: AsyncSession = Depends(get_db),
+                                current_user: User = Depends(get_current_user)):
     result = await db.execute(select(ProjectFile).where(ProjectFile.id == file_id))
     pf = result.scalar_one_or_none()
     if not pf:
         raise HTTPException(status_code=404, detail="File not found")
 
     bucket = settings.MINIO_BUCKET_PROJECTS if pf.file_type == "attachment" else settings.MINIO_BUCKET_SUBMISSIONS
-    url = get_file_url(bucket, pf.object_name, expires_hours=2)
-    return {"download_url": url, "filename": pf.filename}
+    try:
+        file_data = download_file(bucket, pf.object_name)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found in storage")
+
+    content_type = pf.content_type or "application/octet-stream"
+    return StreamingResponse(
+        io.BytesIO(file_data),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{pf.filename}"'},
+    )
 
 
 @router.delete("/{file_id}", status_code=204)
