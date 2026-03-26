@@ -10,6 +10,5 @@ node_modules/
 uploads/
 .pytest_cache/
 .idea/
-CLAUDE.md
 documentation.md
 *.pyc
