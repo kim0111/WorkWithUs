@@ -67,11 +67,11 @@ services:
 
   # ── Backend (FastAPI) ──────────────────────────────
   backend:
-    build: ./api
+    build: ./backend
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/platform_db
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/platform_db
       JWT_SECRET: super-secret-key-change-in-production
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: minioadmin
@@ -87,7 +87,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./api:/src
+      - ./backend:/src
     restart: unless-stopped
 
   # ── Frontend (Vue.js) ─────────────────────────────

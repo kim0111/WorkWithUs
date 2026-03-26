@@ -106,7 +106,7 @@ async def test_student_cant_create_company_project(client: AsyncClient, student_
 @pytest.mark.asyncio
 async def test_list_projects(client: AsyncClient, company_token: str):
     await client.post("/api/v1/projects/", json={
-        "title": "Project One", "description": "Description one here"
+        "title": "P1", "description": "Description one here"
     }, headers=auth(company_token))
     r = await client.get("/api/v1/projects/")
     assert r.status_code == 200
