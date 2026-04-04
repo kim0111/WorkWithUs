@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient
-from src.tests.conftest import auth
+from src.tests.conftest import auth, mock_redis_store
 
 
 @pytest.mark.asyncio
@@ -59,11 +59,21 @@ async def test_register_duplicate_username(client: AsyncClient):
     assert r.status_code == 400
 
 
+async def _find_and_verify(client: AsyncClient):
+    """Helper: find a verification token in mock store and call verify endpoint."""
+    for key in list(mock_redis_store):
+        if key.startswith("email_verify:"):
+            token = key.split(":", 1)[1]
+            await client.get(f"/api/v1/auth/verify-email?token={token}")
+            return
+
+
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient):
     await client.post("/api/v1/auth/register", json={
         "email": "login@test.com", "username": "loginuser", "password": "pass123", "role": "student"
     })
+    await _find_and_verify(client)
     r = await client.post("/api/v1/auth/login", data={"username": "loginuser", "password": "pass123"})
     assert r.status_code == 200
     assert "access_token" in r.json()
@@ -99,10 +109,22 @@ async def test_get_me_no_token(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_login_unverified(client: AsyncClient):
+    """Login should fail if email is not verified."""
+    await client.post("/api/v1/auth/register", json={
+        "email": "unverified@test.com", "username": "unverified", "password": "pass123", "role": "student"
+    })
+    r = await client.post("/api/v1/auth/login", data={"username": "unverified", "password": "pass123"})
+    assert r.status_code == 403
+    assert "not verified" in r.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
 async def test_refresh_token(client: AsyncClient):
     await client.post("/api/v1/auth/register", json={
         "email": "ref@test.com", "username": "refuser", "password": "pass123", "role": "student"
     })
+    await _find_and_verify(client)
     login = await client.post("/api/v1/auth/login", data={"username": "refuser", "password": "pass123"})
     refresh = login.json()["refresh_token"]
     r = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})

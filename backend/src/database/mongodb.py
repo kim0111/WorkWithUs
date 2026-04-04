@@ -9,7 +9,12 @@ _db: Optional[AsyncIOMotorDatabase] = None
 async def get_mongodb() -> AsyncIOMotorDatabase:
     global _client, _db
     if _client is None:
-        _client = AsyncIOMotorClient(settings.MONGODB_URL)
+        _client = AsyncIOMotorClient(
+            settings.MONGODB_URL,
+            maxPoolSize=50,
+            minPoolSize=5,
+            serverSelectionTimeoutMS=5000,
+        )
         _db = _client[settings.MONGODB_DB_NAME]
     return _db
 

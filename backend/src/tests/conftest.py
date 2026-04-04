@@ -5,12 +5,17 @@ from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.main import app
 from src.database.postgres import Base, get_db
 
-TEST_DB = "sqlite+aiosqlite:///./test.db"
-test_engine = create_async_engine(TEST_DB, echo=False)
+TEST_DB = "sqlite+aiosqlite://"  # in-memory database for test isolation
+test_engine = create_async_engine(
+    TEST_DB, echo=False,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestSession = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -172,6 +177,9 @@ PATCHES = [
     ("src.core.redis.publish_message", mock_publish_message),
     # Redis at import sites
     ("src.auth.router.rate_limit_check", mock_rate_limit_check),
+    ("src.auth.router.cache_set", mock_cache_set),
+    ("src.auth.router.cache_get", mock_cache_get),
+    ("src.auth.router.cache_delete", mock_cache_delete),
     ("src.auth.service.blacklist_token", mock_blacklist),
     ("src.core.dependencies.is_token_blacklisted", mock_is_blacklisted),
     ("src.users.service.cache_get", mock_cache_get),
@@ -196,8 +204,17 @@ PATCHES = [
     ("src.notifications.router.incr_counter", mock_incr_counter),
     ("src.notifications.router.get_counter", mock_get_counter),
     ("src.notifications.router.reset_counter", mock_reset_counter),
-    # Email
-    ("src.core.email._send_smtp", MagicMock()),
+    # Chat Redis
+    ("src.chat.router.get_redis", AsyncMock(return_value=MagicMock(pubsub=MagicMock(return_value=MagicMock(
+        subscribe=AsyncMock(), unsubscribe=AsyncMock(), close=AsyncMock(),
+        listen=MagicMock(return_value=AsyncMock().__aiter__()),
+    ))))),
+    # Activity logging
+    ("src.core.activity.get_mongodb", mock_get_mongodb),
+    ("src.auth.service.log_activity", AsyncMock()),
+    ("src.applications.router.log_activity", AsyncMock()),
+    # Email — mock the low-level send; all email functions call _send_smtp
+    ("src.core.email._send_smtp", AsyncMock()),
 ]
 
 
@@ -233,31 +250,35 @@ async def client():
         yield ac
 
 
+async def _register_and_verify(client: AsyncClient, email: str, username: str, password: str, role: str) -> str:
+    """Register a user, verify their email, and return an access token."""
+    # Snapshot existing verify keys so we can find the new one
+    existing_keys = {k for k in mock_redis_store if k.startswith("email_verify:")}
+    await client.post("/api/v1/auth/register", json={
+        "email": email, "username": username, "password": password, "role": role
+    })
+    # Find the newly added verification token
+    new_keys = {k for k in mock_redis_store if k.startswith("email_verify:")} - existing_keys
+    for key in new_keys:
+        verify_token = key.split(":", 1)[1]
+        await client.get(f"/api/v1/auth/verify-email?token={verify_token}")
+    resp = await client.post("/api/v1/auth/login", data={"username": username, "password": password})
+    return resp.json()["access_token"]
+
+
 @pytest_asyncio.fixture
 async def student_token(client: AsyncClient):
-    await client.post("/api/v1/auth/register", json={
-        "email": "s@test.com", "username": "student1", "password": "pass123", "role": "student"
-    })
-    resp = await client.post("/api/v1/auth/login", data={"username": "student1", "password": "pass123"})
-    return resp.json()["access_token"]
+    return await _register_and_verify(client, "s@test.com", "student1", "pass123", "student")
 
 
 @pytest_asyncio.fixture
 async def company_token(client: AsyncClient):
-    await client.post("/api/v1/auth/register", json={
-        "email": "c@test.com", "username": "company1", "password": "pass123", "role": "company"
-    })
-    resp = await client.post("/api/v1/auth/login", data={"username": "company1", "password": "pass123"})
-    return resp.json()["access_token"]
+    return await _register_and_verify(client, "c@test.com", "company1", "pass123", "company")
 
 
 @pytest_asyncio.fixture
 async def admin_token(client: AsyncClient):
-    await client.post("/api/v1/auth/register", json={
-        "email": "a@test.com", "username": "admin1", "password": "pass123", "role": "admin"
-    })
-    resp = await client.post("/api/v1/auth/login", data={"username": "admin1", "password": "pass123"})
-    return resp.json()["access_token"]
+    return await _register_and_verify(client, "a@test.com", "admin1", "pass123", "admin")
 
 
 def auth(token: str):

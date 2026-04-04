@@ -11,7 +11,8 @@
       </div>
     </div>
     <div class="auth-right">
-      <div class="auth-form-wrap">
+      <!-- Registration form -->
+      <div v-if="!registered" class="auth-form-wrap">
         <h2>Create Account</h2>
         <p class="auth-sub">Fill in your details to get started</p>
         <form @submit.prevent="go" class="form">
@@ -31,6 +32,23 @@
         </form>
         <p class="auth-switch">Already have an account? <router-link to="/login">Sign in</router-link></p>
       </div>
+
+      <!-- Verify email prompt (shown after successful registration) -->
+      <div v-else class="auth-form-wrap verify-prompt">
+        <div class="verify-icon">
+          <span class="material-icons-round">mark_email_unread</span>
+        </div>
+        <h2>Check your email</h2>
+        <p class="auth-sub">We sent a verification link to <strong>{{ form.email }}</strong>. Click the link to activate your account.</p>
+        <div class="verify-tips">
+          <p>Didn't receive the email?</p>
+          <ul>
+            <li>Check your spam or junk folder</li>
+            <li>Make sure <strong>{{ form.email }}</strong> is correct</li>
+          </ul>
+        </div>
+        <router-link to="/login" class="btn btn-primary btn-lg full-w">Go to Sign In</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -40,11 +58,15 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const loading = ref(false)
 const err = ref('')
+const registered = ref(false)
 const roles = [{ value: 'student', label: 'Student', icon: 'school' }, { value: 'company', label: 'Company', icon: 'business' }]
 const form = reactive({ email: '', username: '', password: '', full_name: '', role: 'student' })
 async function go() {
   err.value = ''; loading.value = true
-  try { await auth.register(form) }
+  try {
+    await auth.register(form)
+    registered.value = true
+  }
   catch (e) { err.value = e.response?.data?.detail || 'Failed' }
   finally { loading.value = false }
 }
@@ -89,6 +111,21 @@ async function go() {
   padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid #fecaca;
 }
 .auth-switch { text-align: center; margin-top: 1.25rem; font-size: .8125rem; color: var(--gray-500); }
+.verify-prompt { text-align: center; }
+.verify-icon {
+  width: 64px; height: 64px; border-radius: 50%; background: var(--accent-light);
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem;
+}
+.verify-icon .material-icons-round { font-size: 32px; color: var(--accent); }
+.verify-prompt h2 { margin-bottom: 8px; }
+.verify-prompt .auth-sub { margin-bottom: 1.5rem; }
+.verify-tips {
+  text-align: left; background: var(--white); border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 1.5rem; font-size: .8125rem;
+}
+.verify-tips p { color: var(--gray-600); font-weight: 500; margin-bottom: 6px; }
+.verify-tips ul { margin: 0; padding-left: 18px; color: var(--gray-500); }
+.verify-tips li { margin-bottom: 2px; }
 @media (max-width: 768px) {
   .auth-page { grid-template-columns: 1fr; } .auth-left { display: none; }
   .row-2 { grid-template-columns: 1fr; }

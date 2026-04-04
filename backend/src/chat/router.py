@@ -220,12 +220,24 @@ async def send_message_rest(room_id: str, data: SendMessageRequest, bg: Backgrou
 
 @router.websocket("/ws/{room_id}")
 async def websocket_chat(ws: WebSocket, room_id: str):
-    """WebSocket endpoint for real-time chat."""
-    # Authenticate via query param
+    """WebSocket endpoint for real-time chat.
+    Authentication: send {"type": "auth", "token": "<jwt>"} as the first message.
+    Falls back to query param ?token= for backwards compatibility.
+    """
+    await ws.accept()
+
+    # Try query param first (backwards compat), then wait for auth message
     token = ws.query_params.get("token")
     if not token:
-        await ws.close(code=4001, reason="Token required")
-        return
+        try:
+            auth_msg = await asyncio.wait_for(ws.receive_json(), timeout=10.0)
+            if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
+                await ws.close(code=4001, reason="First message must be {type: 'auth', token: '<jwt>'}")
+                return
+            token = auth_msg["token"]
+        except (asyncio.TimeoutError, Exception):
+            await ws.close(code=4001, reason="Authentication timeout")
+            return
 
     try:
         payload = decode_token(token)
@@ -242,7 +254,10 @@ async def websocket_chat(ws: WebSocket, room_id: str):
         await ws.close(code=4003, reason="Not a participant")
         return
 
-    await manager.connect(room_id, ws)
+    # manager.connect without accept (already accepted above)
+    if room_id not in manager.active:
+        manager.active[room_id] = []
+    manager.active[room_id].append(ws)
 
     # Also subscribe to Redis pub/sub for multi-instance support
     redis = await get_redis()

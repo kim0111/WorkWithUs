@@ -111,6 +111,7 @@ async def list_project_files(
     project_id: int,
     file_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(ProjectFile).where(ProjectFile.project_id == project_id)
     if file_type:

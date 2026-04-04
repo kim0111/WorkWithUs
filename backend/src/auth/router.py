@@ -1,10 +1,11 @@
+import secrets
 from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.postgres import get_db
 from src.core.dependencies import get_current_user, oauth2_scheme
-from src.core.email import send_welcome_email
-from src.core.redis import rate_limit_check
+from src.core.email import send_verification_email, send_welcome_email
+from src.core.redis import rate_limit_check, cache_set, cache_get, cache_delete
 from src.users.models import User
 from src.users.schemas import UserResponse
 from src.auth.schemas import RegisterRequest, LoginRequest, TokenResponse, RefreshTokenRequest
@@ -17,8 +18,28 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def register(data: RegisterRequest, bg: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
     user = await service.register(data)
-    bg.add_task(send_welcome_email, user.email, user.username)
+
+    # Generate email verification token and store in Redis (24h TTL)
+    verify_token = secrets.token_urlsafe(32)
+    await cache_set(f"email_verify:{verify_token}", str(user.id), ttl=86400)
+
+    bg.add_task(send_verification_email, user.email, user.username, verify_token)
     return user
+
+
+@router.get("/verify-email")
+async def verify_email(token: str, bg: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+    """Verify user email via token sent during registration."""
+    user_id = await cache_get(f"email_verify:{token}")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+
+    service = AuthService(db)
+    user = await service.verify_email(int(user_id))
+    await cache_delete(f"email_verify:{token}")
+
+    bg.add_task(send_welcome_email, user.email, user.username)
+    return {"message": "Email verified successfully"}
 
 
 @router.post("/login", response_model=TokenResponse)

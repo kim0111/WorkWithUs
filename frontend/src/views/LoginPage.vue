@@ -18,6 +18,10 @@
           <div class="input-group"><label>Username</label><input class="input" v-model="form.username" required /></div>
           <div class="input-group"><label>Password</label><input class="input" type="password" v-model="form.password" required /></div>
           <p v-if="err" class="error-msg">{{ err }}</p>
+          <div v-if="needsVerification" class="info-msg">
+            <span class="material-icons-round">info</span>
+            Please check your inbox and verify your email before signing in.
+          </div>
           <button type="submit" class="btn btn-primary btn-lg full-w" :disabled="loading">{{ loading ? 'Signing in...' : 'Sign In' }}</button>
         </form>
         <p class="auth-switch">Don't have an account? <router-link to="/register">Create one</router-link></p>
@@ -31,11 +35,20 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const loading = ref(false)
 const err = ref('')
+const needsVerification = ref(false)
 const form = reactive({ username: '', password: '' })
 async function handleLogin() {
-  err.value = ''; loading.value = true
+  err.value = ''; needsVerification.value = false; loading.value = true
   try { await auth.login(form) }
-  catch (e) { err.value = e.response?.data?.detail || 'Invalid credentials' }
+  catch (e) {
+    const detail = e.response?.data?.detail || ''
+    if (e.response?.status === 403 && detail.toLowerCase().includes('not verified')) {
+      needsVerification.value = true
+      err.value = ''
+    } else {
+      err.value = detail || 'Invalid credentials'
+    }
+  }
   finally { loading.value = false }
 }
 </script>
@@ -67,6 +80,12 @@ async function handleLogin() {
   color: var(--danger); font-size: .8125rem; background: var(--danger-light);
   padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid #fecaca;
 }
+.info-msg {
+  display: flex; align-items: flex-start; gap: 8px; font-size: .8125rem;
+  color: #1d4ed8; background: #eff6ff; padding: 10px 14px;
+  border-radius: var(--radius-md); border: 1px solid #bfdbfe;
+}
+.info-msg .material-icons-round { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
 .auth-switch { text-align: center; margin-top: 1.25rem; font-size: .8125rem; color: var(--gray-500); }
 @media (max-width: 768px) { .auth-page { grid-template-columns: 1fr; } .auth-left { display: none; } }
 </style>

@@ -17,18 +17,18 @@
 
 | # | Issue | Location | Status |
 |---|-------|----------|--------|
-| 9 | **No email verification on registration** — any email (even fake) can register | `auth/router.py` | ⬜ |
-| 10 | **Missing auth on file listing endpoint** — anyone can list project files by ID | `files/router.py` | ⬜ |
-| 11 | **WebSocket token in query param** — tokens logged in browser history/server logs | `chat/router.py` | ⬜ |
-| 12 | **CORS too permissive** — `allow_methods=["*"]` instead of explicit list | `main.py` | ⬜ |
-| 13 | **Synchronous SMTP blocks event loop** — `smtplib.SMTP()` in BackgroundTasks | `core/email.py` | ⬜ |
-| 14 | **`max_participants` never enforced** — model field exists but applications exceed the limit | `projects/models.py`, `applications/router.py` | ⬜ |
-| 15 | **Health check is fake** — returns hardcoded "connected" without actually checking services | `main.py` | ⬜ |
-| 16 | **No pagination on several list endpoints** — `get_project_applications`, `get_user_reviews` return all rows | `applications/router.py`, `reviews/router.py` | ⬜ |
+| 9 | **No email verification on registration** — any email (even fake) can register | `auth/router.py` | ✅ |
+| 10 | **Missing auth on file listing endpoint** — anyone can list project files by ID | `files/router.py` | ✅ |
+| 11 | **WebSocket token in query param** — tokens logged in browser history/server logs | `chat/router.py` | ✅ |
+| 12 | **CORS too permissive** — `allow_methods=["*"]` instead of explicit list | `main.py` | ✅ |
+| 13 | **Synchronous SMTP blocks event loop** — `smtplib.SMTP()` in BackgroundTasks | `core/email.py` | ✅ |
+| 14 | **`max_participants` never enforced** — model field exists but applications exceed the limit | `projects/models.py`, `applications/router.py` | ✅ |
+| 15 | **Health check is fake** — returns hardcoded "connected" without actually checking services | `main.py` | ✅ |
+| 16 | **No pagination on several list endpoints** — `get_project_applications`, `get_user_reviews` return all rows | `applications/router.py`, `reviews/router.py` | ✅ |
 | 17 | **Inconsistent repository pattern** — Users has clean `repository.py`, others define repos inline in routers | across modules | ⬜ |
-| 18 | **Test DB uses file-based SQLite** — `sqlite:///./test.db` persists between runs, not isolated | `tests/conftest.py` | ⬜ |
-| 19 | **No activity logging** — MongoDB `activity_logs` collection exists but is never written to | entire backend | ⬜ |
-| 20 | **Missing student/company profile endpoints** — models exist but no dedicated CRUD routes | `users/router.py` | ⬜ |
+| 18 | **Test DB uses file-based SQLite** — `sqlite:///./test.db` persists between runs, not isolated | `tests/conftest.py` | ✅ |
+| 19 | **No activity logging** — MongoDB `activity_logs` collection exists but is never written to | entire backend | ✅ |
+| 20 | **Missing student/company profile endpoints** — models exist but no dedicated CRUD routes | `users/router.py` | ✅ |
 
 ## Low
 

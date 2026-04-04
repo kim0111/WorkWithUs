@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -57,8 +58,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # Mount all routers
@@ -74,9 +75,35 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "services": {
-        "postgres": "connected",
-        "mongodb": "connected",
-        "redis": "connected",
-        "minio": "connected",
-    }}
+    from src.database.postgres import engine
+    from src.database.mongodb import get_mongodb
+    from src.core.redis import get_redis
+
+    services = {}
+
+    # Check PostgreSQL
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        services["postgres"] = "connected"
+    except Exception:
+        services["postgres"] = "disconnected"
+
+    # Check MongoDB
+    try:
+        mongo = await get_mongodb()
+        await mongo.command("ping")
+        services["mongodb"] = "connected"
+    except Exception:
+        services["mongodb"] = "disconnected"
+
+    # Check Redis
+    try:
+        redis = await get_redis()
+        await redis.ping()
+        services["redis"] = "connected"
+    except Exception:
+        services["redis"] = "disconnected"
+
+    all_ok = all(v == "connected" for v in services.values())
+    return {"status": "ok" if all_ok else "degraded", "services": services}

@@ -5,6 +5,7 @@ const routes = [
   { path: '/', name: 'Home', component: () => import('@/views/HomePage.vue') },
   { path: '/login', name: 'Login', component: () => import('@/views/LoginPage.vue'), meta: { guest: true } },
   { path: '/register', name: 'Register', component: () => import('@/views/RegisterPage.vue'), meta: { guest: true } },
+  { path: '/verify-email', name: 'VerifyEmail', component: () => import('@/views/VerifyEmailPage.vue'), meta: { guest: true } },
   { path: '/dashboard', name: 'Dashboard', component: () => import('@/views/DashboardPage.vue'), meta: { auth: true } },
   { path: '/projects', name: 'Projects', component: () => import('@/views/ProjectsPage.vue') },
   { path: '/projects/create', name: 'CreateProject', component: () => import('@/views/CreateProjectPage.vue'), meta: { auth: true } },
