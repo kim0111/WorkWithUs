@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.postgres import get_db
 from src.core.dependencies import get_current_user, oauth2_scheme
 from src.core.email import send_welcome_email
+from src.core.redis import rate_limit_check
 from src.users.models import User
 from src.users.schemas import UserResponse
 from src.auth.schemas import RegisterRequest, LoginRequest, TokenResponse, RefreshTokenRequest
@@ -26,6 +27,9 @@ async def login(
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ):
+    client_ip = request.client.host if request.client else "unknown"
+    if not await rate_limit_check(f"login:{client_ip}", max_requests=5, window=60):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again in 1 minute.")
     return await AuthService(db).login(form_data.username, form_data.password)
 
 

@@ -15,13 +15,18 @@ class UserService:
         # Try cache first
         cached = await cache_get(f"user:{user_id}")
         if cached:
-            user = await self.repo.get_by_id(user_id)
-            if user:
-                return user
+            return cached
 
         user = await self.repo.get_by_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+        # Store in cache for next time
+        await cache_set(f"user:{user_id}", {
+            "id": user.id, "email": user.email, "username": user.username,
+            "full_name": user.full_name, "role": user.role.value,
+            "avatar_url": user.avatar_url, "bio": user.bio,
+            "is_active": user.is_active, "is_blocked": user.is_blocked,
+        })
         return user
 
     async def update_user(self, user_id: int, data: UserUpdate, current_user: User) -> User:

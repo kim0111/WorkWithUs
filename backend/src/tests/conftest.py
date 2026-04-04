@@ -1,6 +1,7 @@
 import asyncio
 import pytest
 import pytest_asyncio
+from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -68,6 +69,10 @@ async def mock_reset_counter(key):
 
 async def mock_publish_message(channel, data):
     pass
+
+
+async def mock_rate_limit_check(key, max_requests=5, window=60):
+    return True
 
 
 # Mock MongoDB
@@ -153,27 +158,54 @@ async def mock_init_mongodb():
 
 
 # Apply all patches
+PATCHES = [
+    # Redis core
+    ("src.core.redis.cache_get", mock_cache_get),
+    ("src.core.redis.cache_set", mock_cache_set),
+    ("src.core.redis.cache_delete", mock_cache_delete),
+    ("src.core.redis.cache_delete_pattern", mock_cache_delete_pattern),
+    ("src.core.redis.blacklist_token", mock_blacklist),
+    ("src.core.redis.is_token_blacklisted", mock_is_blacklisted),
+    ("src.core.redis.incr_counter", mock_incr_counter),
+    ("src.core.redis.get_counter", mock_get_counter),
+    ("src.core.redis.reset_counter", mock_reset_counter),
+    ("src.core.redis.publish_message", mock_publish_message),
+    # Redis at import sites
+    ("src.auth.router.rate_limit_check", mock_rate_limit_check),
+    ("src.auth.service.blacklist_token", mock_blacklist),
+    ("src.core.dependencies.is_token_blacklisted", mock_is_blacklisted),
+    ("src.users.service.cache_get", mock_cache_get),
+    ("src.users.service.cache_set", mock_cache_set),
+    ("src.users.service.cache_delete", mock_cache_delete),
+    ("src.skills.router.cache_get", mock_cache_get),
+    ("src.skills.router.cache_set", mock_cache_set),
+    ("src.skills.router.cache_delete", mock_cache_delete),
+    ("src.projects.router.cache_get", mock_cache_get),
+    ("src.projects.router.cache_set", mock_cache_set),
+    ("src.projects.router.cache_delete_pattern", mock_cache_delete_pattern),
+    ("src.admin.router.cache_get", mock_cache_get),
+    ("src.admin.router.cache_set", mock_cache_set),
+    ("src.chat.router.publish_message", mock_publish_message),
+    # MongoDB
+    ("src.database.mongodb.get_mongodb", mock_get_mongodb),
+    ("src.database.mongodb.init_mongodb", mock_init_mongodb),
+    ("src.notifications.router.get_mongodb", mock_get_mongodb),
+    ("src.chat.router.get_mongodb", mock_get_mongodb),
+    ("src.admin.router.get_mongodb", mock_get_mongodb),
+    # Notification counters
+    ("src.notifications.router.incr_counter", mock_incr_counter),
+    ("src.notifications.router.get_counter", mock_get_counter),
+    ("src.notifications.router.reset_counter", mock_reset_counter),
+    # Email
+    ("src.core.email._send_smtp", MagicMock()),
+]
+
+
 @pytest.fixture(autouse=True)
 def patch_externals():
-    with patch("app.core.redis.cache_get", mock_cache_get), \
-         patch("app.core.redis.cache_set", mock_cache_set), \
-         patch("app.core.redis.cache_delete", mock_cache_delete), \
-         patch("app.core.redis.cache_delete_pattern", mock_cache_delete_pattern), \
-         patch("app.core.redis.blacklist_token", mock_blacklist), \
-         patch("app.core.redis.is_token_blacklisted", mock_is_blacklisted), \
-         patch("app.core.redis.incr_counter", mock_incr_counter), \
-         patch("app.core.redis.get_counter", mock_get_counter), \
-         patch("app.core.redis.reset_counter", mock_reset_counter), \
-         patch("app.core.redis.publish_message", mock_publish_message), \
-         patch("app.database.mongodb.get_mongodb", mock_get_mongodb), \
-         patch("app.database.mongodb.init_mongodb", mock_init_mongodb), \
-         patch("app.notifications.router.get_mongodb", mock_get_mongodb), \
-         patch("app.chat.router.get_mongodb", mock_get_mongodb), \
-         patch("app.admin.router.get_mongodb", mock_get_mongodb), \
-         patch("app.notifications.router.incr_counter", mock_incr_counter), \
-         patch("app.notifications.router.get_counter", mock_get_counter), \
-         patch("app.notifications.router.reset_counter", mock_reset_counter), \
-         patch("app.core.email._send_smtp", MagicMock()):
+    with ExitStack() as stack:
+        for target, mock_obj in PATCHES:
+            stack.enter_context(patch(target, mock_obj))
         mock_redis_store.clear()
         mock_mongo.chat_messages = MockCollection()
         mock_mongo.chat_rooms = MockCollection()
@@ -206,7 +238,7 @@ async def student_token(client: AsyncClient):
     await client.post("/api/v1/auth/register", json={
         "email": "s@test.com", "username": "student1", "password": "pass123", "role": "student"
     })
-    resp = await client.post("/api/v1/auth/login", json={"username": "student1", "password": "pass123"})
+    resp = await client.post("/api/v1/auth/login", data={"username": "student1", "password": "pass123"})
     return resp.json()["access_token"]
 
 
@@ -215,7 +247,7 @@ async def company_token(client: AsyncClient):
     await client.post("/api/v1/auth/register", json={
         "email": "c@test.com", "username": "company1", "password": "pass123", "role": "company"
     })
-    resp = await client.post("/api/v1/auth/login", json={"username": "company1", "password": "pass123"})
+    resp = await client.post("/api/v1/auth/login", data={"username": "company1", "password": "pass123"})
     return resp.json()["access_token"]
 
 
@@ -224,7 +256,7 @@ async def admin_token(client: AsyncClient):
     await client.post("/api/v1/auth/register", json={
         "email": "a@test.com", "username": "admin1", "password": "pass123", "role": "admin"
     })
-    resp = await client.post("/api/v1/auth/login", json={"username": "admin1", "password": "pass123"})
+    resp = await client.post("/api/v1/auth/login", data={"username": "admin1", "password": "pass123"})
     return resp.json()["access_token"]
 
 

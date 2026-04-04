@@ -19,16 +19,16 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     CACHE_TTL: int = 300  # 5 minutes
 
-    # JWT
-    SECRET_KEY: str = "super-secret-key-change-in-production"
+    # JWT — no default: must be set via environment or .env
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # MinIO
     MINIO_ENDPOINT: str = "minio:9000"
-    MINIO_ACCESS_KEY: str = "minioadmin"
-    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
     MINIO_SECURE: bool = False
     MINIO_BUCKET_AVATARS: str = "avatars"
     MINIO_BUCKET_PROJECTS: str = "project-files"

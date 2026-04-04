@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, timezone
 from typing import Optional, Sequence
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, select, func
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, select, func, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import relationship
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
@@ -28,6 +28,9 @@ class ApplicationStatus(str, enum.Enum):
 
 class Application(Base):
     __tablename__ = "applications"
+    __table_args__ = (
+        UniqueConstraint("project_id", "applicant_id", name="uq_application_project_applicant"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"))

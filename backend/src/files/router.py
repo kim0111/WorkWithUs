@@ -1,4 +1,6 @@
 import io
+import os
+import re
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
@@ -13,6 +15,22 @@ from src.core.minio_client import upload_file, delete_file, download_file
 from src.users.models import User, RoleEnum
 from src.projects.models import ProjectFile
 from src.projects.router import ProjectRepository
+
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".txt", ".csv", ".zip", ".rar", ".7z",
+    ".png", ".jpg", ".jpeg", ".gif", ".svg",
+    ".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs",
+    ".json", ".xml", ".yaml", ".yml", ".md",
+}
+
+
+def sanitize_filename(filename: str) -> str:
+    """Remove path traversal characters and dangerous patterns from filename."""
+    filename = os.path.basename(filename)
+    filename = re.sub(r'[^\w\s\-.]', '_', filename)
+    filename = filename.strip('. ')
+    return filename or "unnamed_file"
 
 
 # ── Schemas ──────────────────────────────────────────
@@ -59,6 +77,12 @@ async def upload_project_file(
     if file_type == "submission" and not is_applicant:
         raise HTTPException(status_code=403, detail="Only applicants can upload submissions")
 
+    # Validate file extension
+    safe_filename = sanitize_filename(file.filename or "unnamed_file")
+    ext = os.path.splitext(safe_filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type '{ext}' not allowed")
+
     # File size check
     content = await file.read()
     if len(content) > settings.MAX_FILE_SIZE:
@@ -66,12 +90,12 @@ async def upload_project_file(
 
     # Upload to MinIO
     bucket = settings.MINIO_BUCKET_PROJECTS if file_type == "attachment" else settings.MINIO_BUCKET_SUBMISSIONS
-    object_name = upload_file(bucket, content, file.filename, file.content_type or "application/octet-stream")
+    object_name = upload_file(bucket, content, safe_filename, file.content_type or "application/octet-stream")
 
     # Save metadata to PostgreSQL
     project_file = ProjectFile(
         project_id=project_id, uploader_id=current_user.id,
-        filename=file.filename, object_name=object_name,
+        filename=safe_filename, object_name=object_name,
         file_size=len(content), content_type=file.content_type,
         file_type=file_type,
     )

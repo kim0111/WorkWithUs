@@ -9,6 +9,7 @@ from src.auth.schemas import RegisterRequest, TokenResponse
 
 class AuthService:
     def __init__(self, db: AsyncSession):
+        self.db = db
         self.user_repo = UserRepository(db)
         self.company_repo = CompanyProfileRepository(db)
         self.student_repo = StudentProfileRepository(db)
@@ -19,17 +20,18 @@ class AuthService:
         if await self.user_repo.get_by_username(data.username):
             raise HTTPException(status_code=400, detail="Username already taken")
 
-        user = User(
-            email=data.email, username=data.username,
-            hashed_password=hash_password(data.password),
-            full_name=data.full_name, role=data.role,
-        )
-        user = await self.user_repo.create(user)
+        async with self.db.begin_nested():
+            user = User(
+                email=data.email, username=data.username,
+                hashed_password=hash_password(data.password),
+                full_name=data.full_name, role=data.role,
+            )
+            user = await self.user_repo.create(user)
 
-        if data.role == RoleEnum.company:
-            await self.company_repo.create(CompanyProfile(user_id=user.id, company_name=data.username))
-        elif data.role == RoleEnum.student:
-            await self.student_repo.create(StudentProfile(user_id=user.id))
+            if data.role == RoleEnum.company:
+                await self.company_repo.create(CompanyProfile(user_id=user.id, company_name=data.username))
+            elif data.role == RoleEnum.student:
+                await self.student_repo.create(StudentProfile(user_id=user.id))
 
         return user
 
