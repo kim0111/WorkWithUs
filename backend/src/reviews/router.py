@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import relationship
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from src.database.postgres import Base, get_db
 from src.core.dependencies import get_current_user
 from src.core.email import send_review_email
@@ -171,8 +171,11 @@ async def create_review(data: ReviewCreate, bg: BackgroundTasks,
 
 
 @router.get("/user/{user_id}", response_model=list[ReviewResponse])
-async def get_user_reviews(user_id: int, db: AsyncSession = Depends(get_db)):
-    return await ReviewService(db).get_for_user(user_id)
+async def get_user_reviews(user_id: int, page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
+                           db: AsyncSession = Depends(get_db)):
+    reviews = await ReviewService(db).get_for_user(user_id)
+    start = (page - 1) * size
+    return reviews[start:start + size]
 
 
 @router.get("/user/{user_id}/rating", response_model=UserRatingResponse)

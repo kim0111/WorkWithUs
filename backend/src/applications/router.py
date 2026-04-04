@@ -5,10 +5,11 @@ from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, select, func, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import relationship
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from src.database.postgres import Base, get_db
 from src.core.dependencies import get_current_user
 from src.core.email import send_application_status_email, send_new_application_email, send_submission_email
+from src.core.activity import log_activity
 from src.users.models import User, RoleEnum
 from src.users.repository import UserRepository
 
@@ -143,9 +144,22 @@ class ApplicationService:
         if await self.repo.get_by_project_and_applicant(data.project_id, current_user.id):
             raise HTTPException(status_code=400, detail="Already applied")
 
+        # Enforce max_participants — count accepted/in_progress/submitted/approved/completed applications
+        active_statuses = (
+            ApplicationStatus.accepted, ApplicationStatus.in_progress,
+            ApplicationStatus.submitted, ApplicationStatus.approved, ApplicationStatus.completed,
+        )
+        all_apps = await self.repo.get_by_project(data.project_id)
+        active_count = sum(1 for a in all_apps if a.status in active_statuses)
+        if active_count >= project.max_participants:
+            raise HTTPException(status_code=400, detail="Project has reached maximum number of participants")
+
         application = await self.repo.create(Application(
             project_id=data.project_id, applicant_id=current_user.id, cover_letter=data.cover_letter,
         ))
+
+        await log_activity(current_user.id, "apply", f"Applied to project '{project.title}'",
+                           "application", application.id)
 
         # Email owner
         owner = await self.user_repo.get_by_id(project.owner_id)
@@ -197,6 +211,9 @@ class ApplicationService:
 
         application = await self.repo.update(application)
 
+        await log_activity(current_user.id, "update_application_status",
+                           f"Changed status to {data.status.value}", "application", app_id)
+
         # Send email notification
         applicant = await self.user_repo.get_by_id(application.applicant_id)
         if applicant:
@@ -242,9 +259,13 @@ async def update_status(app_id: int, data: ApplicationUpdateStatus, bg: Backgrou
 
 
 @router.get("/project/{project_id}", response_model=list[ApplicationResponse])
-async def get_project_applications(project_id: int, db: AsyncSession = Depends(get_db),
+async def get_project_applications(project_id: int,
+                                   page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
+                                   db: AsyncSession = Depends(get_db),
                                    current_user: User = Depends(get_current_user)):
-    return await ApplicationService(db).get_by_project(project_id, current_user)
+    apps = await ApplicationService(db).get_by_project(project_id, current_user)
+    start = (page - 1) * size
+    return apps[start:start + size]
 
 
 @router.get("/my", response_model=list[ApplicationResponse])
