@@ -1,15 +1,14 @@
-import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
+from aiosmtplib import SMTP as AioSMTP
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-def _send_smtp(to_email: str, subject: str, html_body: str):
-    """Synchronous SMTP send — called from BackgroundTasks."""
+async def _send_smtp(to_email: str, subject: str, html_body: str):
+    """Async SMTP send — called from BackgroundTasks."""
     if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
         logger.warning(f"SMTP not configured. Would send to {to_email}: {subject}")
         return
@@ -21,11 +20,10 @@ def _send_smtp(to_email: str, subject: str, html_body: str):
     msg.attach(MIMEText(html_body, "html"))
 
     try:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.EMAIL_FROM, to_email, msg.as_string())
+        smtp = AioSMTP(hostname=settings.SMTP_HOST, port=settings.SMTP_PORT, start_tls=True)
+        async with smtp:
+            await smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            await smtp.sendmail(settings.EMAIL_FROM, to_email, msg.as_string())
         logger.info(f"Email sent to {to_email}: {subject}")
     except Exception as e:
         logger.error(f"Email send failed to {to_email}: {e}")
@@ -47,17 +45,29 @@ def _base_template(title: str, content: str) -> str:
     """
 
 
-def send_welcome_email(to_email: str, username: str):
+async def send_verification_email(to_email: str, username: str, token: str):
+    verify_url = f"http://localhost:3000/verify-email?token={token}"
+    html = _base_template(
+        "Verify Your Email",
+        f"<p>Hi <strong>{username}</strong>,</p>"
+        "<p>Please verify your email address to activate your account:</p>"
+        f'<p><a href="{verify_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0c0c0e;border-radius:8px;text-decoration:none;font-weight:bold">Verify Email →</a></p>'
+        "<p>This link expires in 24 hours.</p>"
+    )
+    await _send_smtp(to_email, "Verify your NexusHub email", html)
+
+
+async def send_welcome_email(to_email: str, username: str):
     html = _base_template(
         "Welcome to NexusHub!",
         f"<p>Hi <strong>{username}</strong>,</p>"
         "<p>Your account has been created successfully. Start exploring projects and building your portfolio!</p>"
         '<p><a href="http://localhost:3000/dashboard" style="color:#e8a838">Go to Dashboard →</a></p>'
     )
-    _send_smtp(to_email, "Welcome to NexusHub!", html)
+    await _send_smtp(to_email, "Welcome to NexusHub!", html)
 
 
-def send_application_status_email(to_email: str, username: str, project_title: str, status: str):
+async def send_application_status_email(to_email: str, username: str, project_title: str, status: str):
     color_map = {"accepted": "#4ade80", "rejected": "#f87171", "completed": "#60a5fa"}
     color = color_map.get(status, "#e8a838")
     html = _base_template(
@@ -66,20 +76,20 @@ def send_application_status_email(to_email: str, username: str, project_title: s
         f'<p>Your application for <strong>"{project_title}"</strong> has been updated:</p>'
         f'<p style="font-size:18px;color:{color};font-weight:bold">{status.upper()}</p>'
     )
-    _send_smtp(to_email, f"Application {status}: {project_title}", html)
+    await _send_smtp(to_email, f"Application {status}: {project_title}", html)
 
 
-def send_new_application_email(to_email: str, owner_name: str, project_title: str, applicant_name: str):
+async def send_new_application_email(to_email: str, owner_name: str, project_title: str, applicant_name: str):
     html = _base_template(
         "New Application Received",
         f"<p>Hi <strong>{owner_name}</strong>,</p>"
         f'<p><strong>{applicant_name}</strong> has applied to your project <strong>"{project_title}"</strong>.</p>'
         '<p><a href="http://localhost:3000/dashboard" style="color:#e8a838">Review Application →</a></p>'
     )
-    _send_smtp(to_email, f"New application: {project_title}", html)
+    await _send_smtp(to_email, f"New application: {project_title}", html)
 
 
-def send_chat_notification_email(to_email: str, username: str, sender_name: str, project_title: str):
+async def send_chat_notification_email(to_email: str, username: str, sender_name: str, project_title: str):
     html = _base_template(
         "New Unread Message",
         f"<p>Hi <strong>{username}</strong>,</p>"
@@ -87,20 +97,20 @@ def send_chat_notification_email(to_email: str, username: str, sender_name: str,
         f'regarding project <strong>"{project_title}"</strong>.</p>'
         '<p><a href="http://localhost:3000/dashboard" style="color:#e8a838">Open Chat →</a></p>'
     )
-    _send_smtp(to_email, f"New message from {sender_name}", html)
+    await _send_smtp(to_email, f"New message from {sender_name}", html)
 
 
-def send_submission_email(to_email: str, owner_name: str, project_title: str, student_name: str):
+async def send_submission_email(to_email: str, owner_name: str, project_title: str, student_name: str):
     html = _base_template(
         "Work Submitted for Review",
         f"<p>Hi <strong>{owner_name}</strong>,</p>"
         f'<p><strong>{student_name}</strong> has submitted their work for project <strong>"{project_title}"</strong>.</p>'
         "<p>Please review and approve or request revisions.</p>"
     )
-    _send_smtp(to_email, f"Submission ready: {project_title}", html)
+    await _send_smtp(to_email, f"Submission ready: {project_title}", html)
 
 
-def send_review_email(to_email: str, username: str, reviewer_name: str, rating: float):
+async def send_review_email(to_email: str, username: str, reviewer_name: str, rating: float):
     stars = "★" * int(rating) + "☆" * (5 - int(rating))
     html = _base_template(
         "New Review Received",
@@ -108,4 +118,4 @@ def send_review_email(to_email: str, username: str, reviewer_name: str, rating: 
         f"<p><strong>{reviewer_name}</strong> left you a review:</p>"
         f'<p style="font-size:24px;color:#e8a838">{stars} ({rating}/5)</p>'
     )
-    _send_smtp(to_email, f"New review from {reviewer_name}", html)
+    await _send_smtp(to_email, f"New review from {reviewer_name}", html)
