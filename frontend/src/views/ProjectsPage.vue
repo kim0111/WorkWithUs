@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore } from '@/stores/projects'
 import ProjectCard from '@/components/ProjectCard.vue'
@@ -80,6 +80,7 @@ const totalPages = computed(() => Math.ceil(store.total / size))
 
 let timer
 function debouncedFetch() { clearTimeout(timer); timer = setTimeout(() => { page.value = 1; fetchProjects() }, 300) }
+onUnmounted(() => clearTimeout(timer))
 
 async function fetchProjects() {
   const params = { page: page.value, size }

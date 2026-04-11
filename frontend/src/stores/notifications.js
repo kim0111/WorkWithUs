@@ -23,22 +23,18 @@ export const useNotificationsStore = defineStore('notifications', () => {
   }
 
   async function markRead(id) {
-    try {
-      await notificationsAPI.markRead(id)
-      const item = items.value.find(n => n.id === id)
-      if (item && !item.is_read) {
-        item.is_read = true
-        unreadCount.value = Math.max(0, unreadCount.value - 1)
-      }
-    } catch {}
+    await notificationsAPI.markRead(id)
+    const item = items.value.find(n => n.id === id)
+    if (item && !item.is_read) {
+      item.is_read = true
+      unreadCount.value = Math.max(0, unreadCount.value - 1)
+    }
   }
 
   async function markAllRead() {
-    try {
-      await notificationsAPI.markAllRead()
-      items.value.forEach(n => { n.is_read = true })
-      unreadCount.value = 0
-    } catch {}
+    await notificationsAPI.markAllRead()
+    items.value.forEach(n => { n.is_read = true })
+    unreadCount.value = 0
   }
 
   let pollInterval = null

@@ -24,9 +24,9 @@ export const useProjectsStore = defineStore('projects', () => {
     detailLoading.value = true
     try {
       currentProject.value = (await projectsAPI.get(id)).data
-    } catch {
+    } catch (e) {
       currentProject.value = null
-      throw new Error('Project not found')
+      throw e
     } finally {
       detailLoading.value = false
     }
