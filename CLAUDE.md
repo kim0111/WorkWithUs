@@ -18,7 +18,7 @@ docker compose up --build
 
 ### Backend tests (58 tests)
 ```bash
-# Locally (requires Python 3.12+)
+# Locally (requires Python 3.11+)
 cd backend
 pip install -r requirements.txt
 pytest src/tests/ -v
@@ -75,6 +75,9 @@ npm run build      # Production build
 
 ### Testing approach
 Tests use in-memory SQLite (via `aiosqlite`) with `Tortoise.init(db_url="sqlite://:memory:")`. Redis, MongoDB, MinIO, and SMTP are all mocked via `unittest.mock.patch` defined in `src/tests/conftest.py`. The `conftest.py` `PATCHES` list is the central place where all external service mocks are wired. When adding new Redis/MongoDB calls in routers, the corresponding mock must be added to `PATCHES` for both the core module path and the import-site path.
+
+### Email (SMTP)
+Async email via `aiosmtplib` in `src/core/email.py`. Defaults to Gmail SMTP (`smtp.gmail.com:587` with TLS). Requires `SMTP_USER` and `SMTP_PASSWORD` in `backend/.env` — without them, emails are logged but not sent. Seven email types: verification, welcome, application status, new application, submission, chat notification, review. All dispatched via FastAPI `BackgroundTasks`.
 
 ### Port mapping
 Docker Compose maps PostgreSQL to host port **5435** (not 5432) to avoid conflicts with local PostgreSQL. All other services use standard ports.

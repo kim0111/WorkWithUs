@@ -4,6 +4,7 @@
   "src/tests/test_auth.py::test_health",
   "src/tests/test_auth.py::test_login_invalid",
   "src/tests/test_auth.py::test_login_success",
+  "src/tests/test_auth.py::test_login_unverified",
   "src/tests/test_auth.py::test_login_wrong_password",
   "src/tests/test_auth.py::test_logout",
   "src/tests/test_auth.py::test_refresh_token",
