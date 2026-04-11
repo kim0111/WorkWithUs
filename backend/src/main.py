@@ -1,11 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
-from sqlalchemy import text
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import settings
-from src.database.postgres import init_postgres
+from src.database.postgres import init_postgres, close_postgres
 from src.database.mongodb import init_mongodb, close_mongodb
 from src.core.redis import close_redis
 from src.core.minio_client import init_minio
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     await init_postgres()
-    logger.info("PostgreSQL initialized")
+    logger.info("PostgreSQL initialized (Tortoise ORM)")
     await init_mongodb()
     logger.info("MongoDB initialized")
     try:
@@ -39,6 +38,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"MinIO init warning: {e}")
     yield
+    await close_postgres()
     await close_mongodb()
     await close_redis()
     logger.info("Shutdown complete")
@@ -62,7 +62,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
-# Mount all routers
 for r in [auth_router, users_router, skills_router, projects_router, applications_router,
           files_router, chat_router, notifications_router, reviews_router, portfolio_router, admin_router]:
     app.include_router(r, prefix=settings.API_PREFIX)
@@ -71,39 +70,3 @@ for r in [auth_router, users_router, skills_router, projects_router, application
 @app.get("/")
 async def root():
     return {"message": settings.PROJECT_NAME, "version": settings.VERSION, "docs": "/docs"}
-
-
-@app.get("/health")
-async def health():
-    from src.database.postgres import engine
-    from src.database.mongodb import get_mongodb
-    from src.core.redis import get_redis
-
-    services = {}
-
-    # Check PostgreSQL
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        services["postgres"] = "connected"
-    except Exception:
-        services["postgres"] = "disconnected"
-
-    # Check MongoDB
-    try:
-        mongo = await get_mongodb()
-        await mongo.command("ping")
-        services["mongodb"] = "connected"
-    except Exception:
-        services["mongodb"] = "disconnected"
-
-    # Check Redis
-    try:
-        redis = await get_redis()
-        await redis.ping()
-        services["redis"] = "connected"
-    except Exception:
-        services["redis"] = "disconnected"
-
-    all_ok = all(v == "connected" for v in services.values())
-    return {"status": "ok" if all_ok else "degraded", "services": services}
