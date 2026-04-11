@@ -1,8 +1,6 @@
 import secrets
 from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
-from src.database.postgres import get_db
 from src.core.dependencies import get_current_user, oauth2_scheme
 from src.core.email import send_verification_email, send_welcome_email
 from src.core.redis import rate_limit_check, cache_set, cache_get, cache_delete
@@ -15,11 +13,10 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-async def register(data: RegisterRequest, bg: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    service = AuthService(db)
+async def register(data: RegisterRequest, bg: BackgroundTasks):
+    service = AuthService()
     user = await service.register(data)
 
-    # Generate email verification token and store in Redis (24h TTL)
     verify_token = secrets.token_urlsafe(32)
     await cache_set(f"email_verify:{verify_token}", str(user.id), ttl=86400)
 
@@ -28,13 +25,12 @@ async def register(data: RegisterRequest, bg: BackgroundTasks, db: AsyncSession 
 
 
 @router.get("/verify-email")
-async def verify_email(token: str, bg: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    """Verify user email via token sent during registration."""
+async def verify_email(token: str, bg: BackgroundTasks):
     user_id = await cache_get(f"email_verify:{token}")
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
-    service = AuthService(db)
+    service = AuthService()
     user = await service.verify_email(int(user_id))
     await cache_delete(f"email_verify:{token}")
 
@@ -45,23 +41,22 @@ async def verify_email(token: str, bg: BackgroundTasks, db: AsyncSession = Depen
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: Request,
-    db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ):
     client_ip = request.client.host if request.client else "unknown"
     if not await rate_limit_check(f"login:{client_ip}", max_requests=5, window=60):
         raise HTTPException(status_code=429, detail="Too many login attempts. Try again in 1 minute.")
-    return await AuthService(db).login(form_data.username, form_data.password)
+    return await AuthService().login(form_data.username, form_data.password)
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
-    return await AuthService(db).refresh(data.refresh_token)
+async def refresh(data: RefreshTokenRequest):
+    return await AuthService().refresh(data.refresh_token)
 
 
 @router.post("/logout", status_code=204)
-async def logout(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    await AuthService(db).logout(token)
+async def logout(token: str = Depends(oauth2_scheme)):
+    await AuthService().logout(token)
 
 
 @router.get("/me", response_model=UserResponse)

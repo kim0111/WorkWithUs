@@ -1,55 +1,47 @@
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
 from src.core.redis import blacklist_token
 from src.users.models import User, CompanyProfile, StudentProfile, RoleEnum
-from src.users.repository import UserRepository, CompanyProfileRepository, StudentProfileRepository
 from src.auth.schemas import RegisterRequest, TokenResponse
 from src.core.activity import log_activity
+from tortoise.transactions import in_transaction
 
 
 class AuthService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.user_repo = UserRepository(db)
-        self.company_repo = CompanyProfileRepository(db)
-        self.student_repo = StudentProfileRepository(db)
-
     async def register(self, data: RegisterRequest) -> User:
-        if await self.user_repo.get_by_email(data.email):
+        if await User.filter(email=data.email).exists():
             raise HTTPException(status_code=400, detail="Email already registered")
-        if await self.user_repo.get_by_username(data.username):
+        if await User.filter(username=data.username).exists():
             raise HTTPException(status_code=400, detail="Username already taken")
 
-        async with self.db.begin_nested():
-            user = User(
+        async with in_transaction():
+            user = await User.create(
                 email=data.email, username=data.username,
                 hashed_password=hash_password(data.password),
                 full_name=data.full_name, role=data.role,
-                is_active=False,  # inactive until email verified
+                is_active=False,
             )
-            user = await self.user_repo.create(user)
 
             if data.role == RoleEnum.company:
-                await self.company_repo.create(CompanyProfile(user_id=user.id, company_name=data.username))
+                await CompanyProfile.create(user=user, company_name=data.username)
             elif data.role == RoleEnum.student:
-                await self.student_repo.create(StudentProfile(user_id=user.id))
+                await StudentProfile.create(user=user)
 
+        await user.fetch_related("skills")
         await log_activity(user.id, "register", f"Registered as {data.role.value}", "user", user.id)
         return user
 
     async def verify_email(self, user_id: int) -> User:
-        """Mark user email as verified."""
-        user = await self.user_repo.get_by_id(user_id)
+        user = await User.filter(id=user_id).prefetch_related("skills").first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         user.is_active = True
-        await self.db.flush()
+        await user.save()
         await log_activity(user_id, "email_verified", entity_type="user", entity_id=user_id)
         return user
 
     async def login(self, username: str, password: str) -> TokenResponse:
-        user = await self.user_repo.get_by_username(username)
+        user = await User.filter(username=username).first()
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         if not user.is_active:
@@ -68,7 +60,7 @@ class AuthService:
         payload = decode_token(refresh_token)
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
-        user = await self.user_repo.get_by_id(int(payload["sub"]))
+        user = await User.filter(id=int(payload["sub"])).first()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         token_data = {"sub": str(user.id), "role": user.role.value}
