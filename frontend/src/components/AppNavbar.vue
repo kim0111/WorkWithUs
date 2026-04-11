@@ -6,14 +6,14 @@
         <span class="brand-text">NexusHub</span>
       </router-link>
 
-      <button class="hamburger-btn" @click="drawerOpen = !drawerOpen">
+      <button class="hamburger-btn" @click="drawerOpen = !drawerOpen" aria-label="Open menu" :aria-expanded="drawerOpen">
         <span class="material-icons-round">menu</span>
       </button>
 
       <div class="nav-links">
         <router-link to="/projects" class="nav-link">Projects</router-link>
         <router-link v-if="auth.isStudent" to="/my-applications" class="nav-link">Applications</router-link>
-        <router-link v-if="auth.isCompany || auth.isAdmin || auth.isStudent" to="/projects/create" class="nav-link">New Project</router-link>
+        <router-link v-if="auth.isCompany || auth.isAdmin" to="/projects/create" class="nav-link">New Project</router-link>
         <router-link v-if="auth.isAuth" to="/chat" class="nav-link">Chat</router-link>
         <router-link v-if="auth.isAdmin" to="/admin" class="nav-link">Admin</router-link>
       </div>
@@ -48,13 +48,13 @@
   <Teleport to="body">
     <transition name="drawer">
       <div v-if="drawerOpen" class="drawer-backdrop" @click="drawerOpen = false">
-        <div class="drawer-panel" @click.stop>
+        <nav class="drawer-panel" @click.stop aria-label="Mobile navigation">
           <div class="drawer-header">
             <div class="nav-brand">
               <div class="brand-mark">N</div>
               <span class="brand-text">NexusHub</span>
             </div>
-            <button class="drawer-close" @click="drawerOpen = false">
+            <button class="drawer-close" @click="drawerOpen = false" aria-label="Close menu">
               <span class="material-icons-round">close</span>
             </button>
           </div>
@@ -65,7 +65,7 @@
             <router-link v-if="auth.isStudent" to="/my-applications" class="drawer-link" @click="drawerOpen = false">
               <span class="material-icons-round">description</span>Applications
             </router-link>
-            <router-link v-if="auth.isCompany || auth.isAdmin || auth.isStudent" to="/projects/create" class="drawer-link" @click="drawerOpen = false">
+            <router-link v-if="auth.isCompany || auth.isAdmin" to="/projects/create" class="drawer-link" @click="drawerOpen = false">
               <span class="material-icons-round">add_circle_outline</span>New Project
             </router-link>
             <router-link v-if="auth.isAuth" to="/chat" class="drawer-link" @click="drawerOpen = false">
@@ -83,7 +83,7 @@
               <span class="material-icons-round">logout</span>Sign Out
             </button>
           </div>
-        </div>
+        </nav>
       </div>
     </transition>
   </Teleport>
@@ -105,7 +105,15 @@ const unread = ref(0)
 const drawerOpen = ref(false)
 
 watch(() => route.path, () => { drawerOpen.value = false })
-watch(drawerOpen, (open) => { document.body.style.overflow = open ? 'hidden' : '' })
+function onEscape(e) { if (e.key === 'Escape') drawerOpen.value = false }
+watch(drawerOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    document.addEventListener('keydown', onEscape)
+  } else {
+    document.removeEventListener('keydown', onEscape)
+  }
+})
 
 let interval
 onMounted(async () => {
@@ -119,6 +127,7 @@ onUnmounted(() => {
   clearInterval(interval)
   document.removeEventListener('click', onClickOut)
   document.body.style.overflow = ''
+  document.removeEventListener('keydown', onEscape)
 })
 
 function onClickOut(e) { if (menuRef.value && !menuRef.value.contains(e.target)) showMenu.value = false }

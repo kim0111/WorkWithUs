@@ -27,7 +27,7 @@ router.beforeEach(async (to) => {
   if (to.meta.auth && !auth.isAuth) return '/login'
   if (to.meta.guest && auth.isAuth) return '/dashboard'
   if (to.meta.admin && !auth.isAdmin) return '/dashboard'
-  if (to.meta.roles && !to.meta.roles.includes(auth.user?.role)) return '/dashboard'
+  if (to.meta.roles && (!auth.isAuth || !to.meta.roles.includes(auth.user?.role))) return auth.isAuth ? '/dashboard' : '/login'
 })
 
 export default router
