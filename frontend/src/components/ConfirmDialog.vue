@@ -3,7 +3,7 @@
     <p class="confirm-message">{{ message }}</p>
     <template #footer>
       <button class="btn btn-secondary btn-sm" @click="$emit('update:modelValue', false)">Cancel</button>
-      <button class="btn btn-sm" :class="confirmClass" @click="$emit('confirm')">{{ confirmText }}</button>
+      <button class="btn btn-sm" :class="confirmClass" @click="$emit('update:modelValue', false); $emit('confirm')">{{ confirmText }}</button>
     </template>
   </BaseModal>
 </template>

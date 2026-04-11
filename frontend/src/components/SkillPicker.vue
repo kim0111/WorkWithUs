@@ -1,5 +1,5 @@
 <template>
-  <div class="skill-picker">
+  <div ref="pickerEl" class="skill-picker">
     <div class="skill-chips">
       <span v-for="s in skills" :key="s.id" class="skill-chip">
         {{ s.name }}
@@ -33,7 +33,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { skillsAPI, usersAPI } from '@/api'
 import { useToastStore } from '@/stores/toast'
 
@@ -50,6 +50,13 @@ const allSkills = ref([])
 const search = ref('')
 const showDropdown = ref(false)
 const searchInput = ref(null)
+const pickerEl = ref(null)
+
+function onClickOutside(e) {
+  if (pickerEl.value && !pickerEl.value.contains(e.target)) {
+    showDropdown.value = false
+  }
+}
 
 const filtered = computed(() => {
   const currentIds = new Set(props.skills.map(s => s.id))
@@ -71,9 +78,15 @@ watch(showDropdown, async (open) => {
     try { allSkills.value = (await skillsAPI.list()).data } catch {}
     await nextTick()
     searchInput.value?.focus()
+    document.addEventListener('click', onClickOutside, true)
   } else {
     search.value = ''
+    document.removeEventListener('click', onClickOutside, true)
   }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onClickOutside, true)
 })
 
 async function addSkill(skillId) {
