@@ -1,32 +1,20 @@
-import asyncio
 import pytest
 import pytest_asyncio
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
+from tortoise import Tortoise
 
 from src.main import app
-from src.database.postgres import Base, get_db
 
-TEST_DB = "sqlite+aiosqlite://"  # in-memory database for test isolation
-test_engine = create_async_engine(
-    TEST_DB, echo=False,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestSession = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-
-async def override_get_db():
-    async with TestSession() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+TEST_MODELS = [
+    "src.users.models",
+    "src.skills.models",
+    "src.projects.models",
+    "src.applications.models",
+    "src.reviews.models",
+    "src.portfolio.models",
+]
 
 
 # Mock Redis
@@ -188,8 +176,6 @@ PATCHES = [
     ("src.skills.router.cache_get", mock_cache_get),
     ("src.skills.router.cache_set", mock_cache_set),
     ("src.skills.router.cache_delete", mock_cache_delete),
-    ("src.projects.router.cache_get", mock_cache_get),
-    ("src.projects.router.cache_set", mock_cache_set),
     ("src.projects.router.cache_delete_pattern", mock_cache_delete_pattern),
     ("src.admin.router.cache_get", mock_cache_get),
     ("src.admin.router.cache_set", mock_cache_set),
@@ -210,10 +196,9 @@ PATCHES = [
         listen=MagicMock(return_value=AsyncMock().__aiter__()),
     ))))),
     # Activity logging
-    ("src.core.activity.get_mongodb", mock_get_mongodb),
     ("src.auth.service.log_activity", AsyncMock()),
     ("src.applications.router.log_activity", AsyncMock()),
-    # Email — mock the low-level send; all email functions call _send_smtp
+    # Email
     ("src.core.email._send_smtp", AsyncMock()),
 ]
 
@@ -231,16 +216,15 @@ def patch_externals():
         yield
 
 
-app.dependency_overrides[get_db] = override_get_db
-
-
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await Tortoise.init(
+        db_url="sqlite://:memory:",
+        modules={"models": TEST_MODELS},
+    )
+    await Tortoise.generate_schemas()
     yield
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    await Tortoise.close_connections()
 
 
 @pytest_asyncio.fixture
@@ -252,12 +236,10 @@ async def client():
 
 async def _register_and_verify(client: AsyncClient, email: str, username: str, password: str, role: str) -> str:
     """Register a user, verify their email, and return an access token."""
-    # Snapshot existing verify keys so we can find the new one
     existing_keys = {k for k in mock_redis_store if k.startswith("email_verify:")}
     await client.post("/api/v1/auth/register", json={
         "email": email, "username": username, "password": password, "role": role
     })
-    # Find the newly added verification token
     new_keys = {k for k in mock_redis_store if k.startswith("email_verify:")} - existing_keys
     for key in new_keys:
         verify_token = key.split(":", 1)[1]

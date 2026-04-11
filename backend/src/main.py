@@ -70,3 +70,8 @@ for r in [auth_router, users_router, skills_router, projects_router, application
 @app.get("/")
 async def root():
     return {"message": settings.PROJECT_NAME, "version": settings.VERSION, "docs": "/docs"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}

@@ -1,4 +1,4 @@
-from tortoise import Tortoise, connections
+from tortoise import Tortoise
 from src.core.config import settings
 
 
