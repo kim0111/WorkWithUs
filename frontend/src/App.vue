@@ -19,7 +19,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import { useThemeStore } from '@/stores/theme'
 const route = useRoute()
 const theme = useThemeStore()
-const showNav = computed(() => !['Login','Register','Home'].includes(route.name))
+const showNav = computed(() => !['Login','Register','Home','NotFound'].includes(route.name))
 </script>
 <style scoped>
 .app { min-height: 100vh; }
