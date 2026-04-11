@@ -24,7 +24,7 @@
         </button>
         <router-link to="/notifications" class="nav-icon-btn" title="Notifications">
           <span class="material-icons-round">notifications_none</span>
-          <span v-if="unread > 0" class="notif-dot">{{ unread > 9 ? '9+' : unread }}</span>
+          <span v-if="notifStore.unreadCount > 0" class="notif-dot">{{ notifStore.unreadCount > 9 ? '9+' : notifStore.unreadCount }}</span>
         </router-link>
         <div class="nav-user" @click="showMenu = !showMenu" ref="menuRef">
           <div class="user-avatar">{{ (auth.user?.full_name || auth.user?.username || 'U')[0].toUpperCase() }}</div>
@@ -94,14 +94,14 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
-import { notificationsAPI } from '@/api'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const auth = useAuthStore()
 const theme = useThemeStore()
+const notifStore = useNotificationsStore()
 const route = useRoute()
 const showMenu = ref(false)
 const menuRef = ref(null)
-const unread = ref(0)
 const drawerOpen = ref(false)
 
 watch(() => route.path, () => { drawerOpen.value = false })
@@ -115,16 +115,12 @@ watch(drawerOpen, (open) => {
   }
 })
 
-let interval
-onMounted(async () => {
-  try { unread.value = (await notificationsAPI.unreadCount()).data.count } catch {}
-  interval = setInterval(async () => {
-    try { unread.value = (await notificationsAPI.unreadCount()).data.count } catch {}
-  }, 30000)
+onMounted(() => {
+  notifStore.startPolling()
   document.addEventListener('click', onClickOut)
 })
 onUnmounted(() => {
-  clearInterval(interval)
+  notifStore.stopPolling()
   document.removeEventListener('click', onClickOut)
   document.body.style.overflow = ''
   document.removeEventListener('keydown', onEscape)
