@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # PostgreSQL
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/platform_db"
+    DATABASE_URL: str = "asyncpg://postgres:postgres@postgres:5432/platform_db"
 
     # MongoDB
     MONGODB_URL: str = "mongodb://mongo:27017"

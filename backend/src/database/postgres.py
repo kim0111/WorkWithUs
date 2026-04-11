@@ -1,25 +1,30 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from tortoise import Tortoise, connections
 from src.core.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True, pool_size=20, max_overflow=10)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-async def get_db():
-    async with async_session() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+TORTOISE_ORM = {
+    "connections": {"default": settings.DATABASE_URL},
+    "apps": {
+        "models": {
+            "models": [
+                "src.users.models",
+                "src.skills.models",
+                "src.projects.models",
+                "src.applications.models",
+                "src.reviews.models",
+                "src.portfolio.models",
+                "aerich.models",
+            ],
+            "default_connection": "default",
+        }
+    },
+}
 
 
 async def init_postgres():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await Tortoise.init(config=TORTOISE_ORM)
+    await Tortoise.generate_schemas()
+
+
+async def close_postgres():
+    await Tortoise.close_connections()
