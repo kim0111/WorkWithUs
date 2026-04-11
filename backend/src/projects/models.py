@@ -9,7 +9,7 @@ class ProjectStatus(str, enum.Enum):
 
 
 class Project(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     title = fields.CharField(max_length=255)
     description = fields.TextField()
     owner = fields.ForeignKeyField("models.User", related_name="owned_projects", on_delete=fields.CASCADE)
@@ -29,7 +29,7 @@ class Project(models.Model):
 
 
 class ProjectFile(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     project = fields.ForeignKeyField("models.Project", related_name="attachments", on_delete=fields.CASCADE)
     uploader = fields.ForeignKeyField("models.User", related_name="uploaded_files", on_delete=fields.CASCADE)
     filename = fields.CharField(max_length=500)

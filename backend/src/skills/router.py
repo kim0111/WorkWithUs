@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from src.core.dependencies import get_current_user

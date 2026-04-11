@@ -2,7 +2,7 @@ from tortoise import fields, models
 
 
 class Review(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     reviewer = fields.ForeignKeyField("models.User", related_name="reviews_given", on_delete=fields.CASCADE)
     reviewee = fields.ForeignKeyField("models.User", related_name="reviews_received", on_delete=fields.CASCADE)
     project = fields.ForeignKeyField("models.Project", related_name="reviews", on_delete=fields.CASCADE)

@@ -2,7 +2,7 @@ from tortoise import fields, models
 
 
 class PortfolioItem(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     student = fields.ForeignKeyField(
         "models.StudentProfile", related_name="portfolio_items", on_delete=fields.CASCADE
     )

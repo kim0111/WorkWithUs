@@ -14,7 +14,7 @@ class ApplicationStatus(str, enum.Enum):
 
 
 class Application(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     project = fields.ForeignKeyField("models.Project", related_name="applications", on_delete=fields.CASCADE)
     applicant = fields.ForeignKeyField("models.User", related_name="applications", on_delete=fields.CASCADE)
     cover_letter = fields.TextField(null=True)

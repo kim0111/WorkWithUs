@@ -54,7 +54,7 @@ router = APIRouter(prefix="/files", tags=["Files"])
 async def upload_project_file(
     project_id: int,
     file: UploadFile = File(...),
-    file_type: str = Query("attachment", regex="^(attachment|submission)$"),
+    file_type: str = Query("attachment", pattern="^(attachment|submission)$"),
     current_user: User = Depends(get_current_user),
 ):
     project = await Project.filter(id=project_id).prefetch_related("applications").first()

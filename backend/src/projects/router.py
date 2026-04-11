@@ -8,7 +8,6 @@ from src.users.models import User, RoleEnum
 from src.users.schemas import SkillOut
 from src.projects.models import Project, ProjectStatus, ProjectFile
 from src.skills.models import Skill
-from tortoise.functions import Count
 
 
 # -- Schemas --

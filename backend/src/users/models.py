@@ -10,9 +10,9 @@ class RoleEnum(str, enum.Enum):
 
 
 class User(models.Model):
-    id = fields.IntField(pk=True)
-    email = fields.CharField(max_length=255, unique=True, index=True)
-    username = fields.CharField(max_length=100, unique=True, index=True)
+    id = fields.IntField(primary_key=True)
+    email = fields.CharField(max_length=255, unique=True, db_index=True)
+    username = fields.CharField(max_length=100, unique=True, db_index=True)
     hashed_password = fields.CharField(max_length=255)
     full_name = fields.CharField(max_length=255, null=True)
     role = fields.CharEnumField(enum_type=RoleEnum, default=RoleEnum.student)
@@ -32,7 +32,7 @@ class User(models.Model):
 
 
 class CompanyProfile(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     user = fields.OneToOneField("models.User", related_name="company_profile", on_delete=fields.CASCADE)
     company_name = fields.CharField(max_length=255)
     industry = fields.CharField(max_length=255, null=True)
@@ -45,7 +45,7 @@ class CompanyProfile(models.Model):
 
 
 class StudentProfile(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     user = fields.OneToOneField("models.User", related_name="student_profile", on_delete=fields.CASCADE)
     university = fields.CharField(max_length=255, null=True)
     major = fields.CharField(max_length=255, null=True)
