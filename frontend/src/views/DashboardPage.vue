@@ -46,7 +46,14 @@
         <h2>Recent Projects</h2>
         <router-link to="/projects" class="btn btn-ghost btn-sm">View All<span class="material-icons-round">arrow_forward</span></router-link>
       </div>
-      <div v-if="projects.length" class="grid-2">
+      <div v-if="projectsLoading" class="grid-2">
+        <div v-for="n in 4" :key="n" class="card" style="display: flex; flex-direction: column; gap: 12px;">
+          <SkeletonBlock height="20px" width="70%" />
+          <SkeletonBlock height="14px" width="40%" />
+          <SkeletonBlock height="60px" />
+        </div>
+      </div>
+      <div v-else-if="projects.length" class="grid-2">
         <ProjectCard v-for="p in projects" :key="p.id" :project="p" />
       </div>
       <div v-else class="empty-state">
@@ -61,9 +68,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { projectsAPI, adminAPI, applicationsAPI } from '@/api'
 import ProjectCard from '@/components/ProjectCard.vue'
+import SkeletonBlock from '@/components/SkeletonBlock.vue'
 
 const auth = useAuthStore()
 const projects = ref([])
+const projectsLoading = ref(true)
 const stats = ref(null)
 const myApps = ref(0)
 
@@ -80,6 +89,7 @@ const sc = computed(() => {
 
 onMounted(async () => {
   try { projects.value = (await projectsAPI.list({ page: 1, size: 4 })).data.items } catch {}
+  finally { projectsLoading.value = false }
   if (auth.isAdmin) { try { stats.value = (await adminAPI.stats()).data } catch {} }
   if (auth.isStudent) { try { myApps.value = (await applicationsAPI.my()).data.length } catch {} }
 })
