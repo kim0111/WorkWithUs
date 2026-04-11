@@ -6,15 +6,12 @@ from typing import Optional
 from pydantic import BaseModel
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, BackgroundTasks
-from sqlalchemy.ext.asyncio import AsyncSession
-from src.database.postgres import get_db
 from src.database.mongodb import get_mongodb
 from src.core.dependencies import get_current_user
 from src.core.security import decode_token
 from src.core.redis import publish_message, get_redis
 from src.core.email import send_chat_notification_email
 from src.users.models import User
-from src.users.repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -100,16 +97,14 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.post("/rooms/{project_id}/{other_user_id}", response_model=ChatRoomResponse)
 async def create_or_get_room(project_id: int, other_user_id: int,
-                              db: AsyncSession = Depends(get_db),
                               current_user: User = Depends(get_current_user)):
     """Create or get existing chat room for a project between two users."""
-    from src.projects.router import ProjectRepository
-    project = await ProjectRepository(db).get_by_id(project_id)
+    from src.projects.models import Project
+    project = await Project.filter(id=project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    user_repo = UserRepository(db)
-    other = await user_repo.get_by_id(other_user_id)
+    other = await User.filter(id=other_user_id).first()
     if not other:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -167,7 +162,6 @@ async def get_messages(room_id: str, page: int = Query(1, ge=1), size: int = Que
 
 @router.post("/rooms/{room_id}/messages", response_model=ChatMessageResponse, status_code=201)
 async def send_message_rest(room_id: str, data: SendMessageRequest, bg: BackgroundTasks,
-                            db: AsyncSession = Depends(get_db),
                             current_user: User = Depends(get_current_user)):
     """Send a message via REST (alternative to WebSocket)."""
     mongo = await get_mongodb()
@@ -203,8 +197,7 @@ async def send_message_rest(room_id: str, data: SendMessageRequest, bg: Backgrou
     # Email notification to other participant
     other_ids = [p for p in room["participants"] if p != current_user.id]
     for uid in other_ids:
-        user_repo = UserRepository(db)
-        other = await user_repo.get_by_id(uid)
+        other = await User.filter(id=uid).first()
         if other:
             bg.add_task(send_chat_notification_email, other.email, other.username,
                         msg["sender_name"], room.get("project_title", ""))
