@@ -63,6 +63,25 @@
         </div>
       </section>
     </template>
+
+    <!-- Fallback for other roles (e.g. committee) -->
+    <section v-else class="dash-section">
+      <h2>Quick Actions</h2>
+      <div class="actions-grid">
+        <router-link to="/projects" class="action-card">
+          <span class="material-icons-round">search</span>
+          <div><h4>Browse Projects</h4><p>View all projects</p></div>
+        </router-link>
+        <router-link to="/chat" class="action-card">
+          <span class="material-icons-round">chat_bubble_outline</span>
+          <div><h4>Messages</h4><p>Chat with collaborators</p></div>
+        </router-link>
+        <router-link :to="`/profile/${auth.user?.id}`" class="action-card">
+          <span class="material-icons-round">person_outline</span>
+          <div><h4>Profile</h4><p>Edit your profile</p></div>
+        </router-link>
+      </div>
+    </section>
   </div>
 </template>
 
