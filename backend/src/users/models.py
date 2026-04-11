@@ -1,8 +1,5 @@
 import enum
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, Boolean, Enum, DateTime, Float, Table, ForeignKey
-from sqlalchemy.orm import relationship
-from src.database.postgres import Base
+from tortoise import fields, models
 
 
 class RoleEnum(str, enum.Enum):
@@ -12,63 +9,51 @@ class RoleEnum(str, enum.Enum):
     admin = "admin"
 
 
-user_skills = Table(
-    "user_skills", Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("skill_id", Integer, ForeignKey("skills.id", ondelete="CASCADE"), primary_key=True),
-)
+class User(models.Model):
+    id = fields.IntField(pk=True)
+    email = fields.CharField(max_length=255, unique=True, index=True)
+    username = fields.CharField(max_length=100, unique=True, index=True)
+    hashed_password = fields.CharField(max_length=255)
+    full_name = fields.CharField(max_length=255, null=True)
+    role = fields.CharEnumField(enum_type=RoleEnum, default=RoleEnum.student)
+    avatar_url = fields.CharField(max_length=500, null=True)
+    bio = fields.TextField(null=True)
+    is_active = fields.BooleanField(default=True)
+    is_blocked = fields.BooleanField(default=False)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    skills = fields.ManyToManyField(
+        "models.Skill", related_name="users", through="user_skills"
+    )
+
+    class Meta:
+        table = "users"
 
 
-class User(Base):
-    __tablename__ = "users"
+class CompanyProfile(models.Model):
+    id = fields.IntField(pk=True)
+    user = fields.OneToOneField("models.User", related_name="company_profile", on_delete=fields.CASCADE)
+    company_name = fields.CharField(max_length=255)
+    industry = fields.CharField(max_length=255, null=True)
+    website = fields.CharField(max_length=500, null=True)
+    description = fields.TextField(null=True)
+    location = fields.CharField(max_length=255, null=True)
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(100), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(255))
-    role = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.student)
-    avatar_url = Column(String(500))
-    bio = Column(Text)
-    is_active = Column(Boolean, default=True)
-    is_blocked = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=lambda: datetime.utcnow())
-    updated_at = Column(DateTime, default=lambda: datetime.utcnow(),
-                            onupdate=lambda: datetime.utcnow())
-
-    skills = relationship("Skill", secondary=user_skills, back_populates="users", lazy="selectin")
-    company_profile = relationship("CompanyProfile", back_populates="user", uselist=False, lazy="selectin")
-    student_profile = relationship("StudentProfile", back_populates="user", uselist=False, lazy="selectin")
-    owned_projects = relationship("Project", back_populates="owner", lazy="selectin")
-    applications = relationship("Application", back_populates="applicant", lazy="selectin")
+    class Meta:
+        table = "company_profiles"
 
 
-class CompanyProfile(Base):
-    __tablename__ = "company_profiles"
+class StudentProfile(models.Model):
+    id = fields.IntField(pk=True)
+    user = fields.OneToOneField("models.User", related_name="student_profile", on_delete=fields.CASCADE)
+    university = fields.CharField(max_length=255, null=True)
+    major = fields.CharField(max_length=255, null=True)
+    graduation_year = fields.IntField(null=True)
+    gpa = fields.FloatField(null=True)
+    resume_url = fields.CharField(max_length=500, null=True)
+    rating = fields.FloatField(default=0.0)
+    completed_projects_count = fields.IntField(default=0)
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
-    company_name = Column(String(255), nullable=False)
-    industry = Column(String(255))
-    website = Column(String(500))
-    description = Column(Text)
-    location = Column(String(255))
-
-    user = relationship("User", back_populates="company_profile")
-
-
-class StudentProfile(Base):
-    __tablename__ = "student_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
-    university = Column(String(255))
-    major = Column(String(255))
-    graduation_year = Column(Integer)
-    gpa = Column(Float)
-    resume_url = Column(String(500))
-    rating = Column(Float, default=0.0)
-    completed_projects_count = Column(Integer, default=0)
-
-    user = relationship("User", back_populates="student_profile")
-    portfolio_items = relationship("PortfolioItem", back_populates="student", lazy="selectin")
+    class Meta:
+        table = "student_profiles"
