@@ -103,9 +103,10 @@ const rating = ref(null)
 const suggestedProjects = ref([])
 const loading = ref(true)
 
-const activeStatuses = ['pending', 'accepted', 'in_progress', 'submitted', 'revision_requested']
-const activeCount = computed(() => apps.value.filter(a => activeStatuses.includes(a.status)).length)
-const completedCount = computed(() => apps.value.filter(a => a.status === 'completed').length)
+const allApps = ref([])
+const activeStatuses = ['pending', 'accepted', 'in_progress', 'submitted', 'revision_requested', 'approved']
+const activeCount = computed(() => allApps.value.filter(a => activeStatuses.includes(a.status)).length)
+const completedCount = computed(() => allApps.value.filter(a => a.status === 'completed').length)
 
 function timeAgo(d) {
   const diff = (Date.now() - new Date(d).getTime()) / 1000
@@ -124,8 +125,8 @@ onMounted(async () => {
     ])
 
     if (appsRes.status === 'fulfilled') {
-      const allApps = appsRes.value.data
-      apps.value = allApps.slice(0, 5)
+      allApps.value = appsRes.value.data
+      apps.value = allApps.value.slice(0, 5)
 
       // Resolve project titles in parallel
       const uniqueIds = [...new Set(apps.value.map(a => a.project_id))]
@@ -146,7 +147,7 @@ onMounted(async () => {
     if (projectsRes.status === 'fulfilled') {
       suggestedProjects.value = projectsRes.value.data.items
     }
-  } catch {} finally {
+  } catch (err) { console.error('DashboardStudentSection load error:', err) } finally {
     loading.value = false
   }
 })

@@ -149,7 +149,7 @@ onMounted(async () => {
     allPending.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     totalPending.value = allPending.length
     pendingApps.value = allPending.slice(0, 5)
-  } catch {} finally {
+  } catch (err) { console.error('DashboardCompanySection load error:', err) } finally {
     loading.value = false
   }
 })
