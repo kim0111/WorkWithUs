@@ -4,7 +4,7 @@
     <div class="detail-header">
       <div>
         <div class="detail-badges">
-          <span class="badge" :class="statusBadge">{{ project.status }}</span>
+          <StatusBadge :status="project.status" size="md" />
           <span v-if="project.is_student_project" class="badge badge-teal">Student Project</span>
         </div>
         <h1>{{ project.title }}</h1>
@@ -19,7 +19,7 @@
         <select class="input select" :value="project.status" @change="changeStatus($event.target.value)">
           <option value="open">Open</option><option value="in_progress">In Progress</option><option value="closed">Closed</option>
         </select>
-        <button class="btn btn-danger btn-sm" @click="deleteProject"><span class="material-icons-round">delete</span>Delete</button>
+        <button class="btn btn-danger btn-sm" @click="showDeleteConfirm = true"><span class="material-icons-round">delete</span>Delete</button>
       </div>
       <div v-if="auth.isStudent && project.status === 'open' && !isOwner && !myApp" class="detail-actions">
         <button class="btn btn-primary" @click="scrollToApply">
@@ -27,7 +27,7 @@
         </button>
       </div>
       <div v-if="myApp" class="detail-actions">
-        <span class="badge" :class="appStatusBadge(myApp.status)">{{ myApp.status }}</span>
+        <StatusBadge :status="myApp.status" />
       </div>
     </div>
 
@@ -89,7 +89,7 @@
       <h2>Your Application</h2>
       <div class="app-status-card">
         <div class="app-status-row">
-          <span class="badge" :class="appStatusBadge(myApp.status)">{{ myApp.status }}</span>
+          <StatusBadge :status="myApp.status" />
           <span class="text-muted">{{ fmtDate(myApp.updated_at) }}</span>
         </div>
         <p v-if="myApp.cover_letter" class="text-secondary">{{ myApp.cover_letter }}</p>
@@ -123,7 +123,7 @@
               <div class="av-sm">{{ String(a.applicant_id).charAt(0) }}</div>
               User #{{ a.applicant_id }}
             </router-link>
-            <span class="badge" :class="appStatusBadge(a.status)">{{ a.status }}</span>
+            <StatusBadge :status="a.status" />
           </div>
           <p v-if="a.cover_letter" class="text-secondary app-cl">{{ a.cover_letter }}</p>
           <p v-if="a.submission_note" class="text-secondary"><strong>Submission:</strong> {{ a.submission_note }}</p>
@@ -159,8 +159,14 @@
           </div>
         </div>
       </div>
-      <div v-else class="empty-state"><span class="material-icons-round">inbox</span><h3>No applications yet</h3></div>
+      <EmptyState v-else icon="inbox" title="No applications yet" subtitle="Applications will appear here when students apply" />
     </section>
+    <ConfirmDialog
+      v-model="showDeleteConfirm"
+      title="Delete Project"
+      message="Delete this project permanently? This cannot be undone."
+      @confirm="deleteProject"
+    />
   </div>
   <div v-else class="loading-center"><div class="spinner"></div></div>
 </template>
@@ -172,6 +178,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { projectsAPI, applicationsAPI, filesAPI, reviewsAPI, chatAPI } from '@/api'
 import FileUpload from '@/components/FileUpload.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -190,16 +199,11 @@ const revisionNotes = reactive({})
 const reviewData = reactive({})
 const reviewComments = reactive({})
 const reviewedApps = ref(new Set())
+const showDeleteConfirm = ref(false)
 
 const isOwner = computed(() => auth.user && project.value?.owner_id === auth.user.id)
 const isAdmin = computed(() => auth.isAdmin)
 const isApplicant = computed(() => !!myApp.value && ['accepted', 'in_progress', 'submitted', 'revision_requested'].includes(myApp.value.status))
-const statusBadge = computed(() => ({ open: 'badge-success', in_progress: 'badge-warning', closed: 'badge-danger' }[project.value?.status]))
-
-function appStatusBadge(s) {
-  return { pending: 'badge-info', accepted: 'badge-success', rejected: 'badge-danger', in_progress: 'badge-warning',
-    submitted: 'badge-accent', revision_requested: 'badge-warning', approved: 'badge-success', completed: 'badge-teal' }[s] || 'badge-info'
-}
 
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '' }
 function formatSize(b) { if (!b) return ''; if (b < 1024) return b + 'B'; if (b < 1048576) return (b / 1024).toFixed(1) + 'KB'; return (b / 1048576).toFixed(1) + 'MB' }
@@ -255,7 +259,7 @@ async function changeStatus(status) {
 }
 
 async function deleteProject() {
-  if (!confirm('Delete this project permanently?')) return
+  showDeleteConfirm.value = false
   try { await projectsAPI.delete(project.value.id); toast.success('Deleted'); router.push('/projects') }
   catch (e) { toast.error(e.response?.data?.detail || 'Failed') }
 }
