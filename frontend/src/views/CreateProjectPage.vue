@@ -29,11 +29,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
-import { projectsAPI, skillsAPI } from '@/api'
+import { useProjectsStore } from '@/stores/projects'
+import { skillsAPI } from '@/api'
 
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
+const projectsStore = useProjectsStore()
 const loading = ref(false)
 const err = ref('')
 const allSkills = ref([])
@@ -46,7 +48,7 @@ async function submit() {
   try {
     const payload = { ...form, deadline: form.deadline ? new Date(form.deadline).toISOString() : null }
     if (!auth.isStudent) payload.is_student_project = false
-    const { data } = await projectsAPI.create(payload)
+    const data = await projectsStore.create(payload)
     toast.success('Project created!')
     router.push(`/projects/${data.id}`)
   } catch (e) { err.value = e.response?.data?.detail || 'Failed' }
