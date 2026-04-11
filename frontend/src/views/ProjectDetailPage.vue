@@ -168,7 +168,29 @@
       @confirm="deleteProject"
     />
   </div>
-  <div v-else class="loading-center"><div class="spinner"></div></div>
+  <div v-else class="page container">
+    <div class="detail-header">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; gap: 6px;">
+          <SkeletonBlock height="24px" width="80px" border-radius="var(--radius-full)" />
+        </div>
+        <SkeletonBlock height="28px" width="60%" />
+        <div style="display: flex; gap: 16px;">
+          <SkeletonBlock height="14px" width="100px" />
+          <SkeletonBlock height="14px" width="80px" />
+          <SkeletonBlock height="14px" width="120px" />
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <SkeletonBlock height="20px" width="120px" />
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+        <SkeletonBlock height="14px" />
+        <SkeletonBlock height="14px" />
+        <SkeletonBlock height="14px" width="70%" />
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -176,7 +198,9 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
-import { projectsAPI, applicationsAPI, filesAPI, reviewsAPI, chatAPI } from '@/api'
+import { useProjectsStore } from '@/stores/projects'
+import { applicationsAPI, filesAPI, reviewsAPI, chatAPI } from '@/api'
+import SkeletonBlock from '@/components/SkeletonBlock.vue'
 import FileUpload from '@/components/FileUpload.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -186,6 +210,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
+const projectsStore = useProjectsStore()
 
 const project = ref(null)
 const applications = ref([])
@@ -211,7 +236,8 @@ function formatSize(b) { if (!b) return ''; if (b < 1024) return b + 'B'; if (b 
 async function load() {
   const id = route.params.id
   try {
-    project.value = (await projectsAPI.get(id)).data
+    await projectsStore.fetchOne(id)
+    project.value = projectsStore.currentProject
     try { attachments.value = (await filesAPI.list(id, 'attachment')).data } catch {}
     try { submissions.value = (await filesAPI.list(id, 'submission')).data } catch {}
     if (isOwner.value || auth.isAdmin) {
@@ -252,7 +278,7 @@ async function updateMyApp(status, note) {
 
 async function changeStatus(status) {
   try {
-    await projectsAPI.update(project.value.id, { status })
+    await projectsStore.update(project.value.id, { status })
     project.value.status = status
     toast.success('Status updated')
   } catch (e) { toast.error(e.response?.data?.detail || 'Failed') }
@@ -260,7 +286,7 @@ async function changeStatus(status) {
 
 async function deleteProject() {
   showDeleteConfirm.value = false
-  try { await projectsAPI.delete(project.value.id); toast.success('Deleted'); router.push('/projects') }
+  try { await projectsStore.remove(project.value.id); toast.success('Deleted'); router.push('/projects') }
   catch (e) { toast.error(e.response?.data?.detail || 'Failed') }
 }
 
