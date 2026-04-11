@@ -58,6 +58,10 @@ export const usersAPI = {
   update: (id, d) => api.put(`/users/${id}`, d),
   addSkill: (uid, sid) => api.post(`/users/${uid}/skills/${sid}`),
   removeSkill: (uid, sid) => api.delete(`/users/${uid}/skills/${sid}`),
+  getCompanyProfile: id => api.get(`/users/${id}/company-profile`),
+  updateCompanyProfile: (id, d) => api.put(`/users/${id}/company-profile`, d),
+  getStudentProfile: id => api.get(`/users/${id}/student-profile`),
+  updateStudentProfile: (id, d) => api.put(`/users/${id}/student-profile`, d),
 }
 
 // ── Skills ──────────────────────────────────────────
