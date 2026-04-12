@@ -16,18 +16,18 @@
         <input class="input" v-model="search" placeholder="Search projects..." @input="debouncedFetch" />
       </div>
       <div class="filter-group">
-        <select class="input select" v-model="statusFilter" @change="fetchProjects">
+        <select class="input select" v-model="statusFilter" @change="resetAndFetch">
           <option value="">All Statuses</option>
           <option value="open">Open</option>
           <option value="in_progress">In Progress</option>
           <option value="closed">Closed</option>
         </select>
-        <select class="input select" v-model="typeFilter" @change="fetchProjects">
+        <select class="input select" v-model="typeFilter" @change="resetAndFetch">
           <option value="">All Types</option>
           <option value="false">Company</option>
           <option value="true">Student</option>
         </select>
-        <select class="input select" v-model="sortBy" @change="fetchProjects">
+        <select class="input select" v-model="sortBy" @change="resetAndFetch">
           <option value="newest">Newest</option>
           <option value="deadline">Deadline</option>
         </select>
@@ -35,9 +35,10 @@
           v-if="auth.isStudent && auth.user?.skills?.length"
           class="match-btn"
           :class="{ 'match-active': matchSkills }"
+          :aria-pressed="matchSkills"
           @click="toggleMatchSkills"
         >
-          <span class="material-icons-round">auto_awesome</span>
+          <span class="material-icons-round" aria-hidden="true">auto_awesome</span>
           Match My Skills
         </button>
       </div>
@@ -97,10 +98,14 @@ let timer
 function debouncedFetch() { clearTimeout(timer); timer = setTimeout(() => { page.value = 1; fetchProjects() }, 300) }
 onUnmounted(() => clearTimeout(timer))
 
-function toggleMatchSkills() {
-  matchSkills.value = !matchSkills.value
+function resetAndFetch() {
   page.value = 1
   fetchProjects()
+}
+
+function toggleMatchSkills() {
+  matchSkills.value = !matchSkills.value
+  resetAndFetch()
 }
 
 async function fetchProjects() {
