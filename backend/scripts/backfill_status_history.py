@@ -20,35 +20,36 @@ from src.users.models import User
 
 async def backfill():
     await Tortoise.init(config=TORTOISE_ORM)
+    try:
+        applications = await Application.all()
+        updated = 0
+        for app in applications:
+            if app.status_history:
+                continue  # skip rows that already have history
+            applicant = await User.filter(id=app.applicant_id).first()
+            actor_name = (applicant.full_name or applicant.username) if applicant else "Unknown"
+            history = [{
+                "status": "pending",
+                "timestamp": app.created_at.isoformat(),
+                "actor_id": app.applicant_id,
+                "actor_name": actor_name,
+                "note": None,
+            }]
+            if app.status.value != "pending":
+                history.append({
+                    "status": app.status.value,
+                    "timestamp": app.updated_at.isoformat(),
+                    "actor_id": None,
+                    "actor_name": "System (backfill)",
+                    "note": app.submission_note or app.revision_note or None,
+                })
+            app.status_history = history
+            await app.save(update_fields=["status_history"])
+            updated += 1
 
-    applications = await Application.all()
-    updated = 0
-    for app in applications:
-        if app.status_history:
-            continue  # skip rows that already have history
-        applicant = await User.filter(id=app.applicant_id).first()
-        actor_name = (applicant.full_name or applicant.username) if applicant else "Unknown"
-        history = [{
-            "status": "pending",
-            "timestamp": app.created_at.isoformat(),
-            "actor_id": app.applicant_id,
-            "actor_name": actor_name,
-            "note": None,
-        }]
-        if app.status.value != "pending":
-            history.append({
-                "status": app.status.value,
-                "timestamp": app.updated_at.isoformat(),
-                "actor_id": None,
-                "actor_name": "System (backfill)",
-                "note": app.submission_note or app.revision_note or None,
-            })
-        app.status_history = history
-        await app.save()
-        updated += 1
-
-    print(f"Backfilled status_history for {updated} application(s)")
-    await Tortoise.close_connections()
+        print(f"Backfilled status_history for {updated} application(s)")
+    finally:
+        await Tortoise.close_connections()
 
 
 if __name__ == "__main__":
