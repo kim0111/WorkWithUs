@@ -112,7 +112,14 @@
       <h2>Applications ({{ applications.length }})</h2>
       <div v-if="applications.length" class="apps-list">
         <div v-for="a in applications" :key="a.id" class="app-card">
-          <div class="app-card-row" @click="openOwnerDrawer(a)">
+          <div
+            class="app-card-row"
+            role="button"
+            tabindex="0"
+            @click="openOwnerDrawer(a)"
+            @keydown.enter.prevent="openOwnerDrawer(a)"
+            @keydown.space.prevent="openOwnerDrawer(a)"
+          >
             <router-link :to="`/profile/${a.applicant_id}`" class="app-user-link" @click.stop>
               <div class="av-sm">{{ String(a.applicant_id).charAt(0) }}</div>
               User #{{ a.applicant_id }}
@@ -210,8 +217,6 @@ const attachments = ref([])
 const submissions = ref([])
 const coverLetter = ref('')
 const applying = ref(false)
-const submitNote = ref('')
-const revisionNotes = reactive({})
 const reviewData = reactive({})
 const reviewComments = reactive({})
 const reviewedApps = ref(new Set())
@@ -400,17 +405,12 @@ onMounted(load)
 .app-status-card { padding: 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 10px; }
 .app-status-row { display: flex; justify-content: space-between; align-items: center; }
 .revision-note { display: flex; align-items: center; gap: 6px; color: var(--warning); font-size: .8125rem; padding: 8px 12px; background: var(--warning-light); border-radius: var(--radius-md); }
-.submit-work { display: flex; gap: 8px; align-items: center; }
 
 .apps-list { display: flex; flex-direction: column; gap: 12px; }
 .app-card { padding: 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); }
-.app-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .app-user-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--gray-900); font-weight: 500; font-size: .875rem; }
 .av-sm { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: .7rem; color: white; }
-.app-cl { font-size: .8125rem; margin-bottom: 6px; }
 .app-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
-.revision-input { display: flex; gap: 6px; align-items: center; }
-.revision-input .input { min-width: 180px; }
 
 .review-form { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200); }
 .review-form h4 { font-size: .8125rem; }
@@ -440,7 +440,5 @@ onMounted(load)
 
 @media (max-width: 768px) {
   .detail-header { flex-direction: column; gap: .75rem; }
-  .submit-work { flex-direction: column; }
-  .revision-input { flex-direction: column; }
 }
 </style>
