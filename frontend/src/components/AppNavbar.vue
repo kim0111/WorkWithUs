@@ -6,10 +6,14 @@
         <span class="brand-text">NexusHub</span>
       </router-link>
 
+      <button class="hamburger-btn" @click="drawerOpen = !drawerOpen" aria-label="Open menu" :aria-expanded="drawerOpen">
+        <span class="material-icons-round">menu</span>
+      </button>
+
       <div class="nav-links">
         <router-link to="/projects" class="nav-link">Projects</router-link>
         <router-link v-if="auth.isStudent" to="/my-applications" class="nav-link">Applications</router-link>
-        <router-link v-if="auth.isCompany || auth.isAdmin || auth.isStudent" to="/projects/create" class="nav-link">New Project</router-link>
+        <router-link v-if="auth.isCompany || auth.isAdmin" to="/projects/create" class="nav-link">New Project</router-link>
         <router-link v-if="auth.isAuth" to="/chat" class="nav-link">Chat</router-link>
         <router-link v-if="auth.isAdmin" to="/admin" class="nav-link">Admin</router-link>
       </div>
@@ -20,7 +24,7 @@
         </button>
         <router-link to="/notifications" class="nav-icon-btn" title="Notifications">
           <span class="material-icons-round">notifications_none</span>
-          <span v-if="unread > 0" class="notif-dot">{{ unread > 9 ? '9+' : unread }}</span>
+          <span v-if="notifStore.unreadCount > 0" class="notif-dot">{{ notifStore.unreadCount > 9 ? '9+' : notifStore.unreadCount }}</span>
         </router-link>
         <div class="nav-user" @click="showMenu = !showMenu" ref="menuRef">
           <div class="user-avatar">{{ (auth.user?.full_name || auth.user?.username || 'U')[0].toUpperCase() }}</div>
@@ -40,31 +44,86 @@
       </div>
     </div>
   </nav>
+
+  <Teleport to="body">
+    <transition name="drawer">
+      <div v-if="drawerOpen" class="drawer-backdrop" @click="drawerOpen = false">
+        <nav class="drawer-panel" @click.stop aria-label="Mobile navigation">
+          <div class="drawer-header">
+            <div class="nav-brand">
+              <div class="brand-mark">N</div>
+              <span class="brand-text">NexusHub</span>
+            </div>
+            <button class="drawer-close" @click="drawerOpen = false" aria-label="Close menu">
+              <span class="material-icons-round">close</span>
+            </button>
+          </div>
+          <div class="drawer-links">
+            <router-link to="/projects" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">work_outline</span>Projects
+            </router-link>
+            <router-link v-if="auth.isStudent" to="/my-applications" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">description</span>Applications
+            </router-link>
+            <router-link v-if="auth.isCompany || auth.isAdmin" to="/projects/create" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">add_circle_outline</span>New Project
+            </router-link>
+            <router-link v-if="auth.isAuth" to="/chat" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">chat_bubble_outline</span>Chat
+            </router-link>
+            <router-link v-if="auth.isAdmin" to="/admin" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">admin_panel_settings</span>Admin
+            </router-link>
+          </div>
+          <div class="drawer-footer">
+            <router-link :to="`/profile/${auth.user?.id}`" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">person</span>Profile
+            </router-link>
+            <button class="drawer-link danger" @click="drawerOpen = false; handleLogout()">
+              <span class="material-icons-round">logout</span>Sign Out
+            </button>
+          </div>
+        </nav>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
-import { notificationsAPI } from '@/api'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const auth = useAuthStore()
 const theme = useThemeStore()
+const notifStore = useNotificationsStore()
+const route = useRoute()
 const showMenu = ref(false)
 const menuRef = ref(null)
-const unread = ref(0)
+const drawerOpen = ref(false)
 
-let interval
-onMounted(async () => {
-  try { unread.value = (await notificationsAPI.unreadCount()).data.count } catch {}
-  interval = setInterval(async () => {
-    try { unread.value = (await notificationsAPI.unreadCount()).data.count } catch {}
-  }, 30000)
+watch(() => route.path, () => { drawerOpen.value = false })
+function onEscape(e) { if (e.key === 'Escape') drawerOpen.value = false }
+watch(drawerOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    document.addEventListener('keydown', onEscape)
+  } else {
+    document.removeEventListener('keydown', onEscape)
+  }
+})
+
+onMounted(() => {
+  notifStore.startPolling()
   document.addEventListener('click', onClickOut)
 })
 onUnmounted(() => {
-  clearInterval(interval)
+  notifStore.stopPolling()
   document.removeEventListener('click', onClickOut)
+  document.body.style.overflow = ''
+  document.removeEventListener('keydown', onEscape)
 })
 
 function onClickOut(e) { if (menuRef.value && !menuRef.value.contains(e.target)) showMenu.value = false }
@@ -131,5 +190,98 @@ function handleLogout() { showMenu.value = false; auth.logout() }
 .dropdown-item.danger .material-icons-round { color: var(--danger); }
 .dropdown-item.danger:hover { background: var(--danger-light); }
 .dropdown-divider { height: 1px; background: var(--gray-200); margin: 4px 0; }
-@media (max-width: 768px) { .nav-links { display: none; } }
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: none;
+  border: none;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+.hamburger-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+}
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--gray-200);
+}
+.drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: none;
+  border: none;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+.drawer-close:hover { background: var(--gray-100); }
+.drawer-links {
+  flex: 1;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--gray-700);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  background: none;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.15s ease;
+}
+.drawer-link:hover { background: var(--gray-100); }
+.drawer-link.router-link-active { color: var(--accent-text); background: var(--accent-light); }
+.drawer-link.danger { color: var(--danger); }
+.drawer-link .material-icons-round { font-size: 20px; color: var(--gray-400); }
+.drawer-link.danger .material-icons-round { color: var(--danger); }
+.drawer-footer {
+  padding: 8px;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.drawer-enter-active, .drawer-leave-active { transition: opacity 0.2s ease; }
+.drawer-enter-from, .drawer-leave-to { opacity: 0; }
+.drawer-enter-active .drawer-panel, .drawer-leave-active .drawer-panel { transition: transform 0.2s ease; }
+.drawer-enter-from .drawer-panel, .drawer-leave-to .drawer-panel { transform: translateX(-100%); }
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hamburger-btn { display: flex; }
+}
 </style>

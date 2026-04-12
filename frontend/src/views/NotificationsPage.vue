@@ -4,17 +4,28 @@
       <h1>Notifications</h1>
       <div class="header-actions">
         <label class="toggle-label">
-          <input type="checkbox" v-model="unreadOnly" @change="fetchNotifs" />
+          <input type="checkbox" v-model="unreadOnly" @change="handleFilterChange" />
           <span>Unread only</span>
         </label>
-        <button class="btn btn-secondary btn-sm" @click="markAllRead" :disabled="!notifs.length">
+        <button class="btn btn-secondary btn-sm" @click="markAllRead" :disabled="!store.items.length">
           <span class="material-icons-round">done_all</span>Mark all read
         </button>
       </div>
     </header>
-    <div v-if="loading" class="loading-center"><div class="spinner"></div></div>
-    <div v-else-if="notifs.length" class="notifs-list">
-      <div v-for="n in notifs" :key="n.id" class="notif-card" :class="{ unread: !n.is_read }" @click="markRead(n)">
+    <div v-if="store.loading" class="notifs-list">
+      <div v-for="n in 5" :key="n" class="notif-card" style="pointer-events: none;">
+        <div class="notif-icon">
+          <SkeletonBlock width="36px" height="36px" border-radius="var(--radius-md)" />
+        </div>
+        <div class="notif-content" style="display: flex; flex-direction: column; gap: 6px;">
+          <SkeletonBlock height="14px" width="60%" />
+          <SkeletonBlock height="12px" width="80%" />
+          <SkeletonBlock height="10px" width="30%" />
+        </div>
+      </div>
+    </div>
+    <div v-else-if="store.items.length" class="notifs-list">
+      <div v-for="n in store.items" :key="n.id" class="notif-card" :class="{ unread: !n.is_read }" @click="markRead(n)">
         <div class="notif-icon" :class="`notif-${n.notification_type}`">
           <span class="material-icons-round">{{ iconMap[n.notification_type] || 'notifications' }}</span>
         </div>
@@ -35,13 +46,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { notificationsAPI } from '@/api'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useToastStore } from '@/stores/toast'
+import SkeletonBlock from '@/components/SkeletonBlock.vue'
 
 const router = useRouter()
+const store = useNotificationsStore()
 const toast = useToastStore()
-const notifs = ref([])
-const loading = ref(true)
 const unreadOnly = ref(false)
 const iconMap = { info: 'info', review: 'star', application: 'send', chat: 'chat', warning: 'warning' }
 
@@ -53,22 +64,21 @@ function timeAgo(d) {
   return Math.floor(diff / 86400) + 'd ago'
 }
 
-async function fetchNotifs() {
-  loading.value = true
-  try { notifs.value = (await notificationsAPI.list(unreadOnly.value)).data }
-  catch {} finally { loading.value = false }
+async function handleFilterChange() {
+  await store.fetchList(unreadOnly.value)
 }
 
 async function markRead(n) {
-  if (!n.is_read) { try { await notificationsAPI.markRead(n.id); n.is_read = true } catch {} }
+  if (!n.is_read) await store.markRead(n.id)
   if (n.link) router.push(n.link)
 }
 
 async function markAllRead() {
-  try { await notificationsAPI.markAllRead(); notifs.value.forEach(n => n.is_read = true); toast.success('All marked read') } catch {}
+  await store.markAllRead()
+  toast.success('All marked read')
 }
 
-onMounted(fetchNotifs)
+onMounted(() => store.fetchList(unreadOnly.value))
 </script>
 <style scoped>
 .page { padding: 2rem 24px; }

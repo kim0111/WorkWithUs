@@ -2,7 +2,8 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  paramsSerializer: { indexes: null },
 })
 
 api.interceptors.request.use(config => {
@@ -58,6 +59,10 @@ export const usersAPI = {
   update: (id, d) => api.put(`/users/${id}`, d),
   addSkill: (uid, sid) => api.post(`/users/${uid}/skills/${sid}`),
   removeSkill: (uid, sid) => api.delete(`/users/${uid}/skills/${sid}`),
+  getCompanyProfile: id => api.get(`/users/${id}/company-profile`),
+  updateCompanyProfile: (id, d) => api.put(`/users/${id}/company-profile`, d),
+  getStudentProfile: id => api.get(`/users/${id}/student-profile`),
+  updateStudentProfile: (id, d) => api.put(`/users/${id}/student-profile`, d),
 }
 
 // ── Skills ──────────────────────────────────────────

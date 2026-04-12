@@ -19,6 +19,8 @@ class UserService:
             "full_name": user.full_name, "role": user.role.value,
             "avatar_url": user.avatar_url, "bio": user.bio,
             "is_active": user.is_active, "is_blocked": user.is_blocked,
+            "created_at": user.created_at.isoformat(),
+            "skills": [{"id": s.id, "name": s.name, "category": s.category} for s in user.skills],
         })
         return user
 

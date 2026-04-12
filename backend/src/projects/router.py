@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query
+from tortoise.queryset import Q
 from src.core.dependencies import get_current_user
 from src.core.redis import cache_get, cache_set, cache_delete_pattern
 from src.users.models import User, RoleEnum
@@ -67,7 +68,7 @@ class ProjectListResponse(BaseModel):
 
 # -- Helper --
 
-def _build_project_filter(status=None, owner_id=None, is_student_project=None, search=None):
+def _build_project_filter(status=None, owner_id=None, is_student_project=None, search=None, skill_ids=None):
     filters = {}
     if status:
         filters["status"] = status
@@ -76,8 +77,14 @@ def _build_project_filter(status=None, owner_id=None, is_student_project=None, s
     if is_student_project is not None:
         filters["is_student_project"] = is_student_project
     q = Project.filter(**filters)
+    if skill_ids:
+        q = q.filter(required_skills__id__in=skill_ids)
     if search:
-        q = q.filter(title__icontains=search)
+        q = q.filter(
+            Q(title__icontains=search) |
+            Q(description__icontains=search) |
+            Q(required_skills__name__icontains=search)
+        )
     return q
 
 
@@ -115,11 +122,14 @@ async def list_projects(
     page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
     status: Optional[ProjectStatus] = None, owner_id: Optional[int] = None,
     is_student_project: Optional[bool] = None, search: Optional[str] = None,
+    skill_ids: Optional[list[int]] = Query(None),
+    sort: Literal["newest", "deadline"] = Query("newest"),
 ):
     skip = (page - 1) * size
-    q = _build_project_filter(status, owner_id, is_student_project, search)
-    total = await q.count()
-    items = await q.prefetch_related("required_skills", "attachments").order_by("-created_at").offset(skip).limit(size)
+    q = _build_project_filter(status, owner_id, is_student_project, search, skill_ids)
+    total = await q.distinct().count()
+    order = "deadline" if sort == "deadline" else "-created_at"
+    items = await q.prefetch_related("required_skills", "attachments").distinct().order_by(order).offset(skip).limit(size)
     return {"items": items, "total": total, "page": page, "size": size}
 
 

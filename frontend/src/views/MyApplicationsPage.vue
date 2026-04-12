@@ -1,84 +1,128 @@
 <template>
   <div class="page container">
     <header class="page-header"><h1>My Applications</h1></header>
-    <div v-if="loading" class="loading-center"><div class="spinner"></div></div>
-    <div v-else-if="apps.length" class="apps-list">
-      <div v-for="a in apps" :key="a.id" class="app-card card">
-        <div class="app-header">
-          <router-link :to="`/projects/${a.project_id}`" class="app-project-link">
-            <span class="material-icons-round">folder</span>Project #{{ a.project_id }}
-          </router-link>
-          <span class="badge" :class="statusBadge(a.status)">{{ a.status }}</span>
-        </div>
-        <p v-if="a.cover_letter" class="app-letter">{{ a.cover_letter }}</p>
-        <p v-if="a.submission_note" class="status-note"><span class="material-icons-round">send</span>{{ a.submission_note }}</p>
-        <p v-if="a.revision_note" class="status-note revision"><span class="material-icons-round">edit_note</span>{{ a.revision_note }}</p>
-
-        <div class="workflow-bar">
-          <div v-for="s in workflowSteps" :key="s" class="wf-step" :class="{ done: stepIndex(a.status) >= workflowSteps.indexOf(s), current: a.status === s }">
-            <div class="wf-dot"></div>
-            <span class="wf-label">{{ s }}</span>
-          </div>
-        </div>
-
-        <div class="app-footer">
-          <span class="text-muted">Applied {{ fmtDate(a.created_at) }}</span>
-          <span class="text-muted">Updated {{ fmtDate(a.updated_at) }}</span>
-          <router-link :to="`/projects/${a.project_id}`" class="btn btn-ghost btn-sm">
-            <span class="material-icons-round">open_in_new</span>View Project
-          </router-link>
-        </div>
+    <div v-if="store.loading" class="apps-list">
+      <div v-for="n in 4" :key="n" class="app-card card">
+        <SkeletonBlock height="18px" width="60%" />
+        <div style="margin-top: 10px;"><SkeletonBlock height="12px" width="40%" /></div>
       </div>
     </div>
-    <div v-else class="empty-state">
-      <span class="material-icons-round">send</span>
-      <h3>No applications yet</h3>
-      <p>Browse projects and apply to get started</p>
-      <router-link to="/projects" class="btn btn-primary">Browse Projects</router-link>
+    <div v-else-if="store.myApps.length" class="apps-list">
+      <button
+        v-for="a in store.myApps"
+        :key="a.id"
+        type="button"
+        class="app-card card"
+        @click="selected = a"
+      >
+        <div class="app-header">
+          <div class="app-project-link">
+            <span class="material-icons-round">folder</span>
+            {{ projectTitles[a.project_id] || `Project #${a.project_id}` }}
+          </div>
+          <StatusBadge :status="a.status" />
+        </div>
+        <p v-if="a.cover_letter" class="app-letter">{{ a.cover_letter }}</p>
+        <div class="app-footer">
+          <span class="text-muted">{{ latestSummary(a) }}</span>
+          <span class="view-details">View details <span class="material-icons-round">chevron_right</span></span>
+        </div>
+      </button>
     </div>
+    <EmptyState
+      v-else
+      icon="send"
+      title="No applications yet"
+      subtitle="Browse projects and apply to get started"
+      actionText="Browse Projects"
+      actionTo="/projects"
+    />
+
+    <ApplicationDetailDrawer
+      :application="selected"
+      view-as="student"
+      @close="selected = null"
+    />
   </div>
 </template>
+
 <script setup>
 import { ref, onMounted } from 'vue'
-import { applicationsAPI } from '@/api'
+import { useApplicationsStore } from '@/stores/applications'
+import { projectsAPI } from '@/api'
+import StatusBadge from '@/components/StatusBadge.vue'
+import SkeletonBlock from '@/components/SkeletonBlock.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import ApplicationDetailDrawer from '@/components/ApplicationDetailDrawer.vue'
 
-const apps = ref([])
-const loading = ref(true)
-const workflowSteps = ['pending', 'accepted', 'in_progress', 'submitted', 'approved', 'completed']
+const store = useApplicationsStore()
+const selected = ref(null)
+const projectTitles = ref({})
 
-function stepIndex(s) { const i = workflowSteps.indexOf(s); return i >= 0 ? i : (s === 'rejected' ? -1 : s === 'revision_requested' ? 3 : 0) }
-function statusBadge(s) {
-  return { pending: 'badge-info', accepted: 'badge-success', rejected: 'badge-danger', in_progress: 'badge-warning',
-    submitted: 'badge-accent', revision_requested: 'badge-warning', approved: 'badge-success', completed: 'badge-teal' }[s] || 'badge-info'
+const STATUS_LABELS = {
+  pending: 'Pending', accepted: 'Accepted', rejected: 'Rejected',
+  in_progress: 'In Progress', submitted: 'Submitted',
+  revision_requested: 'Revision Requested', approved: 'Approved', completed: 'Completed',
 }
-function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '' }
 
-onMounted(async () => { try { apps.value = (await applicationsAPI.my()).data } catch {} finally { loading.value = false } })
+function latestSummary(app) {
+  const hist = app.status_history || []
+  if (!hist.length) return `Applied ${fmtDate(app.created_at)}`
+  const latest = hist[hist.length - 1]
+  return `Latest: ${STATUS_LABELS[latest.status] || latest.status} · ${fmtDate(latest.timestamp)}`
+}
+
+function fmtDate(d) {
+  return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+}
+
+onMounted(async () => {
+  await store.fetchMy()
+  // Resolve project titles for each application in parallel
+  const ids = [...new Set(store.myApps.map(a => a.project_id))]
+  const results = await Promise.allSettled(ids.map(id => projectsAPI.get(id)))
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') projectTitles.value[ids[i]] = r.value.data.title
+  })
+})
 </script>
+
 <style scoped>
 .page { padding: 2rem 24px; }
 .page-header { margin-bottom: 1.5rem; }
 .apps-list { display: flex; flex-direction: column; gap: 12px; }
-.app-card { padding: 20px; }
-.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.app-project-link { display: flex; align-items: center; gap: 6px; text-decoration: none; color: var(--gray-900); font-weight: 500; font-size: .9375rem; }
+.app-card {
+  padding: 16px;
+  text-align: left;
+  width: 100%;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  cursor: pointer;
+  transition: all .15s ease;
+  border-radius: var(--radius-lg);
+}
+.app-card:hover { border-color: var(--gray-300); box-shadow: var(--shadow-sm); }
+.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.app-project-link { display: flex; align-items: center; gap: 6px; color: var(--gray-900); font-weight: 500; font-size: .9375rem; }
 .app-project-link .material-icons-round { color: var(--accent); font-size: 18px; }
 .app-letter { color: var(--gray-600); font-size: .8125rem; margin-bottom: 10px; line-height: 1.5; }
-.status-note { display: flex; align-items: center; gap: 6px; font-size: .8125rem; color: var(--gray-600); padding: 6px 10px; background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 6px; }
-.status-note.revision { color: var(--warning); background: var(--warning-light); }
-.status-note .material-icons-round { font-size: 16px; }
-
-.workflow-bar { display: flex; gap: 0; margin: 14px 0; overflow-x: auto; }
-.wf-step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 60px; position: relative; }
-.wf-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gray-100); border: 2px solid var(--gray-300); transition: all .15s; z-index: 1; }
-.wf-step.done .wf-dot { background: var(--accent); border-color: var(--accent); }
-.wf-step.current .wf-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
-.wf-label { font-size: .625rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: .02em; text-align: center; }
-.wf-step.done .wf-label, .wf-step.current .wf-label { color: var(--gray-700); font-weight: 600; }
-.wf-step:not(:last-child)::after { content: ''; position: absolute; top: 4px; left: calc(50% + 7px); right: calc(-50% + 7px); height: 2px; background: var(--gray-200); }
-.wf-step.done:not(:last-child)::after { background: var(--accent); }
-
-.app-footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
-.text-muted { color: var(--gray-400); font-size: .75rem; }
-.loading-center { display: flex; justify-content: center; padding: 4rem; }
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gray-100);
+}
+.text-muted { color: var(--gray-500); font-size: .8125rem; }
+.view-details {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--accent);
+  font-size: .8125rem;
+  font-weight: 500;
+}
+.view-details .material-icons-round { font-size: 16px; }
 </style>
