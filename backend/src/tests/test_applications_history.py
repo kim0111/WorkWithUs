@@ -40,6 +40,11 @@ async def test_status_transition_appends_history(
     """Each transition should append one new entry with the correct actor."""
     project_id = await _create_project(client, company_token)
 
+    company_me_r = await client.get("/api/v1/auth/me", headers=auth(company_token))
+    company_user_id = company_me_r.json()["id"]
+    student_me_r = await client.get("/api/v1/auth/me", headers=auth(student_token))
+    student_user_id = student_me_r.json()["id"]
+
     apply_r = await client.post("/api/v1/applications/", json={
         "project_id": project_id,
     }, headers=auth(student_token))
@@ -55,6 +60,7 @@ async def test_status_transition_appends_history(
     assert len(body["status_history"]) == 2
     assert body["status_history"][1]["status"] == "accepted"
     assert body["status_history"][1]["note"] is None
+    assert body["status_history"][1]["actor_id"] == company_user_id
 
     # Student starts working
     start_r = await client.put(
@@ -65,6 +71,7 @@ async def test_status_transition_appends_history(
     body = start_r.json()
     assert len(body["status_history"]) == 3
     assert body["status_history"][2]["status"] == "in_progress"
+    assert body["status_history"][2]["actor_id"] == student_user_id
 
 
 @pytest.mark.asyncio

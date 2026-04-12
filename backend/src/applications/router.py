@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
@@ -38,9 +38,10 @@ class ApplicationResponse(BaseModel):
     status: ApplicationStatus
     submission_note: Optional[str] = None
     revision_note: Optional[str] = None
+    status_history: list[StatusHistoryEntry] = []
     created_at: datetime
     updated_at: datetime
-    status_history: list[StatusHistoryEntry] = []
+
     class Config:
         from_attributes = True
 
@@ -60,7 +61,7 @@ VALID_TRANSITIONS = {
 def _append_history(app: Application, status: str, actor: User, note: Optional[str] = None) -> list[dict]:
     entry = {
         "status": status,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "actor_id": actor.id,
         "actor_name": actor.full_name or actor.username,
         "note": note,
