@@ -22,6 +22,14 @@ class ApplicationUpdateStatus(BaseModel):
     note: Optional[str] = None
 
 
+class StatusHistoryEntry(BaseModel):
+    status: str
+    timestamp: datetime
+    actor_id: Optional[int] = None
+    actor_name: str
+    note: Optional[str] = None
+
+
 class ApplicationResponse(BaseModel):
     id: int
     project_id: int
@@ -32,6 +40,7 @@ class ApplicationResponse(BaseModel):
     revision_note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    status_history: list[StatusHistoryEntry] = []
     class Config:
         from_attributes = True
 
@@ -46,6 +55,19 @@ VALID_TRANSITIONS = {
     ApplicationStatus.revision_requested: [ApplicationStatus.submitted],
     ApplicationStatus.approved: [ApplicationStatus.completed],
 }
+
+
+def _append_history(app: Application, status: str, actor: User, note: Optional[str] = None) -> list[dict]:
+    entry = {
+        "status": status,
+        "timestamp": datetime.utcnow().isoformat(),
+        "actor_id": actor.id,
+        "actor_name": actor.full_name or actor.username,
+        "note": note,
+    }
+    history = list(app.status_history or [])
+    history.append(entry)
+    return history
 
 
 # -- Router --
@@ -78,6 +100,9 @@ async def apply(data: ApplicationCreate, bg: BackgroundTasks,
     application = await Application.create(
         project_id=data.project_id, applicant_id=current_user.id, cover_letter=data.cover_letter,
     )
+
+    application.status_history = _append_history(application, "pending", current_user, None)
+    await application.save()
 
     await log_activity(current_user.id, "apply", f"Applied to project '{project.title}'",
                        "application", application.id)
@@ -124,6 +149,9 @@ async def update_status(app_id: int, data: ApplicationUpdateStatus, bg: Backgrou
         application.submission_note = data.note
     if data.status == ApplicationStatus.revision_requested and data.note:
         application.revision_note = data.note
+    application.status_history = _append_history(
+        application, data.status.value, current_user, data.note
+    )
     await application.save()
 
     await log_activity(current_user.id, "update_application_status",

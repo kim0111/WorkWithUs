@@ -23,6 +23,7 @@ class Application(models.Model):
     revision_note = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+    status_history = fields.JSONField(default=list)
 
     class Meta:
         table = "applications"
