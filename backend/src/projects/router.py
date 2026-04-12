@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query
 from tortoise.queryset import Q
@@ -123,7 +123,7 @@ async def list_projects(
     status: Optional[ProjectStatus] = None, owner_id: Optional[int] = None,
     is_student_project: Optional[bool] = None, search: Optional[str] = None,
     skill_ids: Optional[list[int]] = Query(None),
-    sort: Optional[str] = Query("newest"),
+    sort: Literal["newest", "deadline"] = Query("newest"),
 ):
     skip = (page - 1) * size
     q = _build_project_filter(status, owner_id, is_student_project, search, skill_ids)
