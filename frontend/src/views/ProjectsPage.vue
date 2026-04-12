@@ -27,6 +27,19 @@
           <option value="false">Company</option>
           <option value="true">Student</option>
         </select>
+        <select class="input select" v-model="sortBy" @change="fetchProjects">
+          <option value="newest">Newest</option>
+          <option value="deadline">Deadline</option>
+        </select>
+        <button
+          v-if="auth.isStudent && auth.user?.skills?.length"
+          class="match-btn"
+          :class="{ 'match-active': matchSkills }"
+          @click="toggleMatchSkills"
+        >
+          <span class="material-icons-round">auto_awesome</span>
+          Match My Skills
+        </button>
       </div>
     </div>
 
@@ -76,17 +89,29 @@ const size = 12
 const search = ref('')
 const statusFilter = ref('')
 const typeFilter = ref('')
+const sortBy = ref('newest')
+const matchSkills = ref(false)
 const totalPages = computed(() => Math.ceil(store.total / size))
 
 let timer
 function debouncedFetch() { clearTimeout(timer); timer = setTimeout(() => { page.value = 1; fetchProjects() }, 300) }
 onUnmounted(() => clearTimeout(timer))
 
+function toggleMatchSkills() {
+  matchSkills.value = !matchSkills.value
+  page.value = 1
+  fetchProjects()
+}
+
 async function fetchProjects() {
   const params = { page: page.value, size }
   if (search.value) params.search = search.value
   if (statusFilter.value) params.status = statusFilter.value
   if (typeFilter.value !== '') params.is_student_project = typeFilter.value === 'true'
+  if (sortBy.value !== 'newest') params.sort = sortBy.value
+  if (matchSkills.value && auth.user?.skills?.length) {
+    params.skill_ids = auth.user.skills.map(s => s.id)
+  }
   await store.fetchList(params)
 }
 
@@ -101,9 +126,30 @@ onMounted(fetchProjects)
 .search-box { flex: 1; min-width: 220px; position: relative; display: flex; align-items: center; }
 .search-box .material-icons-round { position: absolute; left: 12px; color: var(--gray-400); font-size: 18px; }
 .search-box .input { padding-left: 36px; width: 100%; }
-.filter-group { display: flex; gap: 8px; }
+.filter-group { display: flex; gap: 8px; flex-wrap: wrap; }
 .select { min-width: 140px; }
 .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 1.5rem; }
 .page-info { font-size: .8125rem; color: var(--gray-500); }
+.match-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  font-size: .8125rem;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.match-btn:hover { border-color: var(--gray-300); }
+.match-btn .material-icons-round { font-size: 16px; }
+.match-active {
+  background: var(--accent);
+  color: var(--white);
+  border-color: var(--accent);
+}
+.match-active:hover { opacity: 0.9; }
 </style>
