@@ -94,12 +94,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { projectsAPI, applicationsAPI } from '@/api'
+import { useApplicationsStore } from '@/stores/applications'
+import { projectsAPI } from '@/api'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonBlock from '@/components/SkeletonBlock.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const auth = useAuthStore()
+const applicationsStore = useApplicationsStore()
 const myProjects = ref([])
 const myProjectsTotal = ref(0)
 const appCounts = ref({})
@@ -127,29 +129,26 @@ onMounted(async () => {
     const { data } = await projectsAPI.list({ owner_id: auth.user.id, page: 1, size: 5 })
     myProjects.value = data.items
     myProjectsTotal.value = data.total
-
-    // Build project titles map
     myProjects.value.forEach(p => { projectTitles.value[p.id] = p.title })
 
-    // Fetch applications for each project in parallel
-    const appResults = await Promise.allSettled(
-      myProjects.value.map(p => applicationsAPI.byProject(p.id))
+    // Fetch applications for each project in parallel via the store
+    await Promise.allSettled(
+      myProjects.value.map(p => applicationsStore.fetchByProject(p.id))
     )
 
     let allPending = []
-    appResults.forEach((r, i) => {
-      if (r.status === 'fulfilled') {
-        const projectApps = r.value.data
-        appCounts.value[myProjects.value[i].id] = projectApps.length
-        const pending = projectApps.filter(a => a.status === 'pending')
-        allPending.push(...pending)
-      }
+    myProjects.value.forEach(p => {
+      const projectApps = applicationsStore.byProject[p.id] || []
+      appCounts.value[p.id] = projectApps.length
+      allPending.push(...projectApps.filter(a => a.status === 'pending'))
     })
 
     allPending.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     totalPending.value = allPending.length
     pendingApps.value = allPending.slice(0, 5)
-  } catch (err) { console.error('DashboardCompanySection load error:', err) } finally {
+  } catch (err) {
+    console.error('DashboardCompanySection load error:', err)
+  } finally {
     loading.value = false
   }
 })

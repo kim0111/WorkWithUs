@@ -90,23 +90,24 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { applicationsAPI, projectsAPI, reviewsAPI } from '@/api'
+import { useApplicationsStore } from '@/stores/applications'
+import { projectsAPI, reviewsAPI } from '@/api'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ProjectCard from '@/components/ProjectCard.vue'
 import SkeletonBlock from '@/components/SkeletonBlock.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const auth = useAuthStore()
-const apps = ref([])
+const applicationsStore = useApplicationsStore()
 const projectTitles = ref({})
 const rating = ref(null)
 const suggestedProjects = ref([])
 const loading = ref(true)
 
-const allApps = ref([])
 const activeStatuses = ['pending', 'accepted', 'in_progress', 'submitted', 'revision_requested', 'approved']
-const activeCount = computed(() => allApps.value.filter(a => activeStatuses.includes(a.status)).length)
-const completedCount = computed(() => allApps.value.filter(a => a.status === 'completed').length)
+const apps = computed(() => applicationsStore.myApps.slice(0, 5))
+const activeCount = computed(() => applicationsStore.myApps.filter(a => activeStatuses.includes(a.status)).length)
+const completedCount = computed(() => applicationsStore.myApps.filter(a => a.status === 'completed').length)
 
 function timeAgo(d) {
   const diff = (Date.now() - new Date(d).getTime()) / 1000
@@ -118,36 +119,33 @@ function timeAgo(d) {
 
 onMounted(async () => {
   try {
-    const [appsRes, ratingRes, projectsRes] = await Promise.allSettled([
-      applicationsAPI.my(),
+    const [ratingRes, projectsRes] = await Promise.allSettled([
       reviewsAPI.rating(auth.user.id),
       projectsAPI.list({ page: 1, size: 4, status: 'open' }),
     ])
 
-    if (appsRes.status === 'fulfilled') {
-      allApps.value = appsRes.value.data
-      apps.value = allApps.value.slice(0, 5)
+    await applicationsStore.fetchMy()
 
-      // Resolve project titles in parallel
-      const uniqueIds = [...new Set(apps.value.map(a => a.project_id))]
-      const titleResults = await Promise.allSettled(
-        uniqueIds.map(id => projectsAPI.get(id))
-      )
-      titleResults.forEach((r, i) => {
-        if (r.status === 'fulfilled') {
-          projectTitles.value[uniqueIds[i]] = r.value.data.title
-        }
-      })
-    }
+    // Resolve project titles for the first 5 applications in parallel
+    const uniqueIds = [...new Set(apps.value.map(a => a.project_id))]
+    const titleResults = await Promise.allSettled(
+      uniqueIds.map(id => projectsAPI.get(id))
+    )
+    titleResults.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        projectTitles.value[uniqueIds[i]] = r.value.data.title
+      }
+    })
 
     if (ratingRes.status === 'fulfilled') {
       rating.value = ratingRes.value.data
     }
-
     if (projectsRes.status === 'fulfilled') {
       suggestedProjects.value = projectsRes.value.data.items
     }
-  } catch (err) { console.error('DashboardStudentSection load error:', err) } finally {
+  } catch (err) {
+    console.error('DashboardStudentSection load error:', err)
+  } finally {
     loading.value = false
   }
 })
