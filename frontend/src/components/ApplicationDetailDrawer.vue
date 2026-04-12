@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
     <Transition name="drawer-fade">
-      <div v-if="application" class="drawer-backdrop" @click.self="close" @keydown.esc="close" tabindex="0">
-        <aside class="drawer" role="dialog" aria-label="Application details">
+      <div v-if="application" class="drawer-backdrop" @click.self="close">
+        <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="app-drawer-title">
           <header class="drawer-head">
-            <h3>Application details</h3>
+            <h3 id="app-drawer-title">Application details</h3>
             <button class="drawer-close" @click="close" aria-label="Close">
               <span class="material-icons-round">close</span>
             </button>
