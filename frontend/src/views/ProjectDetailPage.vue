@@ -97,19 +97,13 @@
           <span class="material-icons-round">edit_note</span>Revision: {{ myApp.revision_note }}
         </p>
         <div class="app-actions">
-          <button v-if="myApp.status === 'accepted'" class="btn btn-primary btn-sm" @click="updateMyApp('in_progress')">
-            <span class="material-icons-round">play_arrow</span>Start Working
+          <button class="btn btn-primary btn-sm" @click="openMyAppDrawer">
+            <span class="material-icons-round">timeline</span>View full history &amp; actions
           </button>
-          <div v-if="myApp.status === 'in_progress' || myApp.status === 'revision_requested'" class="submit-work">
-            <input class="input" v-model="submitNote" placeholder="Submission note..." />
-            <button class="btn btn-primary btn-sm" @click="updateMyApp('submitted', submitNote)">
-              <span class="material-icons-round">send</span>Submit Work
-            </button>
-          </div>
+          <button v-if="myApp.status !== 'rejected'" class="btn btn-secondary btn-sm" @click="openChat">
+            <span class="material-icons-round">chat_bubble_outline</span>Message Owner
+          </button>
         </div>
-        <button v-if="myApp.status !== 'rejected'" class="btn btn-secondary btn-sm" @click="openChat">
-          <span class="material-icons-round">chat_bubble_outline</span>Message Owner
-        </button>
       </div>
     </section>
 
@@ -118,45 +112,31 @@
       <h2>Applications ({{ applications.length }})</h2>
       <div v-if="applications.length" class="apps-list">
         <div v-for="a in applications" :key="a.id" class="app-card">
-          <div class="app-card-header">
-            <router-link :to="`/profile/${a.applicant_id}`" class="app-user-link">
+          <div class="app-card-row" @click="openOwnerDrawer(a)">
+            <router-link :to="`/profile/${a.applicant_id}`" class="app-user-link" @click.stop>
               <div class="av-sm">{{ String(a.applicant_id).charAt(0) }}</div>
               User #{{ a.applicant_id }}
             </router-link>
-            <StatusBadge :status="a.status" />
+            <div class="app-card-meta">
+              <span class="text-muted">{{ latestSummary(a) }}</span>
+              <StatusBadge :status="a.status" />
+              <span class="material-icons-round chev">chevron_right</span>
+            </div>
           </div>
-          <p v-if="a.cover_letter" class="text-secondary app-cl">{{ a.cover_letter }}</p>
-          <p v-if="a.submission_note" class="text-secondary"><strong>Submission:</strong> {{ a.submission_note }}</p>
-          <div class="app-actions">
-            <template v-if="a.status === 'pending'">
-              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'accepted')">Accept</button>
-              <button class="btn btn-danger btn-sm" @click="updateApp(a.id, 'rejected')">Reject</button>
-            </template>
-            <template v-if="a.status === 'submitted'">
-              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'approved')">Approve</button>
-              <div class="revision-input">
-                <input class="input" v-model="revisionNotes[a.id]" placeholder="Revision note..." />
-                <button class="btn btn-outline btn-sm" @click="updateApp(a.id, 'revision_requested', revisionNotes[a.id])">Request Revision</button>
+          <div v-if="a.status === 'completed' || a.status === 'approved'" class="app-review-row">
+            <div v-if="!reviewedApps.has(a.id)" class="review-form">
+              <h4>Leave Review</h4>
+              <div class="star-select">
+                <button v-for="n in 5" :key="n" class="star-btn" :class="{ active: (reviewData[a.id]?.rating || 0) >= n }" @click="setRating(a.id, n)">&#9733;</button>
               </div>
-            </template>
-            <template v-if="a.status === 'approved'">
-              <button class="btn btn-primary btn-sm" @click="updateApp(a.id, 'completed')">Mark Completed</button>
-            </template>
-            <template v-if="a.status === 'completed' || a.status === 'approved'">
-              <div v-if="!reviewedApps.has(a.id)" class="review-form">
-                <h4>Leave Review</h4>
-                <div class="star-select">
-                  <button v-for="n in 5" :key="n" class="star-btn" :class="{ active: (reviewData[a.id]?.rating || 0) >= n }" @click="setRating(a.id, n)">&#9733;</button>
-                </div>
-                <input class="input" v-model="reviewComments[a.id]" placeholder="Comment..." />
-                <button class="btn btn-primary btn-sm" @click="submitReview(a.id, a.applicant_id)">Submit Review</button>
-              </div>
-              <span v-else class="text-muted">Reviewed</span>
-            </template>
-            <button v-if="a.status !== 'rejected'" class="btn btn-ghost btn-sm" @click="openChatWith(a.applicant_id)">
-              <span class="material-icons-round">chat_bubble_outline</span>Chat
-            </button>
+              <input class="input" v-model="reviewComments[a.id]" placeholder="Comment..." />
+              <button class="btn btn-primary btn-sm" @click="submitReview(a.id, a.applicant_id)">Submit Review</button>
+            </div>
+            <span v-else class="text-muted">Reviewed</span>
           </div>
+          <button v-if="a.status !== 'rejected'" class="btn btn-ghost btn-sm chat-btn" @click="openChatWith(a.applicant_id)">
+            <span class="material-icons-round">chat_bubble_outline</span>Chat
+          </button>
         </div>
       </div>
       <EmptyState v-else icon="inbox" title="No applications yet" subtitle="Applications will appear here when students apply" />
@@ -166,6 +146,12 @@
       title="Delete Project"
       message="Delete this project permanently? This cannot be undone."
       @confirm="deleteProject"
+    />
+    <ApplicationDetailDrawer
+      :application="drawerApp"
+      :view-as="drawerView"
+      @close="closeDrawer"
+      @action-complete="onApplicationAction"
     />
   </div>
   <div v-else class="page container">
@@ -199,22 +185,27 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { useProjectsStore } from '@/stores/projects'
-import { applicationsAPI, filesAPI, reviewsAPI, chatAPI } from '@/api'
+import { useApplicationsStore } from '@/stores/applications'
+import { filesAPI, reviewsAPI, chatAPI } from '@/api'
 import SkeletonBlock from '@/components/SkeletonBlock.vue'
 import FileUpload from '@/components/FileUpload.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import ApplicationDetailDrawer from '@/components/ApplicationDetailDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
 const projectsStore = useProjectsStore()
+const applicationsStore = useApplicationsStore()
 
 const project = ref(null)
-const applications = ref([])
+const applications = computed(() => applicationsStore.byProject[route.params.id] || [])
 const myApp = ref(null)
+const drawerApp = ref(null)
+const drawerView = ref('student')
 const attachments = ref([])
 const submissions = ref([])
 const coverLetter = ref('')
@@ -233,6 +224,19 @@ const isApplicant = computed(() => !!myApp.value && ['accepted', 'in_progress', 
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '' }
 function formatSize(b) { if (!b) return ''; if (b < 1024) return b + 'B'; if (b < 1048576) return (b / 1024).toFixed(1) + 'KB'; return (b / 1048576).toFixed(1) + 'MB' }
 
+const STATUS_LABELS_PD = {
+  pending: 'Pending', accepted: 'Accepted', rejected: 'Rejected',
+  in_progress: 'In Progress', submitted: 'Submitted',
+  revision_requested: 'Revision Requested', approved: 'Approved', completed: 'Completed',
+}
+
+function latestSummary(app) {
+  const hist = app.status_history || []
+  if (!hist.length) return `Applied ${fmtDate(app.created_at)}`
+  const latest = hist[hist.length - 1]
+  return `${STATUS_LABELS_PD[latest.status] || latest.status} · ${fmtDate(latest.timestamp)}`
+}
+
 async function load() {
   const id = route.params.id
   try {
@@ -241,13 +245,11 @@ async function load() {
     try { attachments.value = (await filesAPI.list(id, 'attachment')).data } catch {}
     try { submissions.value = (await filesAPI.list(id, 'submission')).data } catch {}
     if (isOwner.value || auth.isAdmin) {
-      try { applications.value = (await applicationsAPI.byProject(id)).data } catch {}
+      await applicationsStore.fetchByProject(id)
     }
     if (auth.isStudent) {
-      try {
-        const mine = (await applicationsAPI.my()).data
-        myApp.value = mine.find(a => a.project_id === Number(id)) || null
-      } catch {}
+      await applicationsStore.fetchMy()
+      myApp.value = applicationsStore.myApps.find(a => a.project_id === Number(id)) || null
     }
   } catch { router.push('/projects') }
 }
@@ -255,25 +257,34 @@ async function load() {
 async function apply() {
   applying.value = true
   try {
-    await applicationsAPI.apply({ project_id: project.value.id, cover_letter: coverLetter.value || null })
+    await applicationsStore.apply({ project_id: project.value.id, cover_letter: coverLetter.value || null })
     toast.success('Application submitted!')
     await load()
   } catch (e) { toast.error(e.response?.data?.detail || 'Failed') }
   finally { applying.value = false }
 }
 
-async function updateApp(id, status, note) {
-  try {
-    await applicationsAPI.updateStatus(id, { status, note: note || null })
-    toast.success(`Status updated: ${status}`)
-    await load()
-  } catch (e) { toast.error(e.response?.data?.detail || 'Failed') }
+async function onApplicationAction() {
+  // Drawer already patched the store; sync local myApp for the student view
+  if (auth.isStudent) {
+    myApp.value = applicationsStore.myApps.find(a => a.project_id === Number(route.params.id)) || null
+  }
+  toast.success('Status updated')
 }
 
-async function updateMyApp(status, note) {
+function openOwnerDrawer(app) {
+  drawerView.value = 'company'
+  drawerApp.value = app
+}
+
+function openMyAppDrawer() {
   if (!myApp.value) return
-  await updateApp(myApp.value.id, status, note)
-  submitNote.value = ''
+  drawerView.value = 'student'
+  drawerApp.value = myApp.value
+}
+
+function closeDrawer() {
+  drawerApp.value = null
 }
 
 async function changeStatus(status) {
@@ -411,6 +422,21 @@ onMounted(load)
 .text-muted { color: var(--gray-400); font-size: .8125rem; }
 .text-secondary { color: var(--gray-600); font-size: .8125rem; }
 .loading-center { display: flex; justify-content: center; padding: 6rem; }
+
+.app-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px 2px;
+  border-radius: var(--radius-md);
+}
+.app-card-row:hover { background: var(--gray-50); }
+.app-card-meta { display: flex; align-items: center; gap: 10px; }
+.app-card-meta .chev { color: var(--gray-400); font-size: 18px; }
+.app-review-row { margin-top: 10px; }
+.chat-btn { margin-top: 8px; }
 
 @media (max-width: 768px) {
   .detail-header { flex-direction: column; gap: .75rem; }
