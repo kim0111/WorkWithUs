@@ -25,13 +25,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { applicationsAPI, projectsAPI } from '@/api'
+import { ref, computed, onMounted } from 'vue'
+import { useApplicationsStore } from '@/stores/applications'
+import { projectsAPI } from '@/api'
 import StatusBadge from '@/components/StatusBadge.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
-const apps = ref([])
+const applicationsStore = useApplicationsStore()
+const projectTitles = ref({})
 const loading = ref(true)
+
+const apps = computed(() =>
+  applicationsStore.myApps.map(a => ({
+    ...a,
+    _projectTitle: projectTitles.value[a.project_id],
+  }))
+)
 
 function fmtDate(d) {
   return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
@@ -39,18 +48,16 @@ function fmtDate(d) {
 
 onMounted(async () => {
   try {
-    const { data } = await applicationsAPI.my()
-    const projectIds = [...new Set(data.map(a => a.project_id))]
-    const projectMap = {}
+    await applicationsStore.fetchMy()
+    const projectIds = [...new Set(applicationsStore.myApps.map(a => a.project_id))]
     await Promise.all(
       projectIds.map(async (pid) => {
         try {
           const res = await projectsAPI.get(pid)
-          projectMap[pid] = res.data.title
+          projectTitles.value[pid] = res.data.title
         } catch {}
       })
     )
-    apps.value = data.map(a => ({ ...a, _projectTitle: projectMap[a.project_id] || '' }))
   } catch {}
   loading.value = false
 })

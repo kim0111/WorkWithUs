@@ -31,8 +31,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { projectsAPI, applicationsAPI } from '@/api'
+import { ref, computed, onMounted } from 'vue'
+import { useApplicationsStore } from '@/stores/applications'
+import { projectsAPI } from '@/api'
 import StatusBadge from '@/components/StatusBadge.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
@@ -41,9 +42,17 @@ const props = defineProps({
   isOwner: { type: Boolean, default: false },
 })
 
+const applicationsStore = useApplicationsStore()
 const projects = ref([])
-const applicationCounts = ref({})
 const loading = ref(true)
+
+const applicationCounts = computed(() => {
+  const counts = {}
+  projects.value.forEach(p => {
+    counts[p.id] = (applicationsStore.byProject[p.id] || []).length
+  })
+  return counts
+})
 
 function fmtDate(d) {
   return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
@@ -55,18 +64,9 @@ onMounted(async () => {
     projects.value = data.items || []
 
     if (props.isOwner) {
-      const counts = {}
       await Promise.all(
-        projects.value.map(async (p) => {
-          try {
-            const res = await applicationsAPI.byProject(p.id)
-            counts[p.id] = res.data.length
-          } catch {
-            counts[p.id] = 0
-          }
-        })
+        projects.value.map(p => applicationsStore.fetchByProject(p.id))
       )
-      applicationCounts.value = counts
     }
   } catch {}
   loading.value = false

@@ -24,8 +24,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { projectsAPI, applicationsAPI } from '@/api'
+import { ref, computed, onMounted } from 'vue'
+import { useApplicationsStore } from '@/stores/applications'
+import { projectsAPI } from '@/api'
 import StatusBadge from '@/components/StatusBadge.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
@@ -33,8 +34,19 @@ const props = defineProps({
   userId: { type: Number, required: true },
 })
 
-const apps = ref([])
+const applicationsStore = useApplicationsStore()
+const projects = ref([])
 const loading = ref(true)
+
+const apps = computed(() => {
+  const all = []
+  projects.value.forEach(p => {
+    const projectApps = applicationsStore.byProject[p.id] || []
+    projectApps.forEach(a => all.push({ ...a, _projectTitle: p.title }))
+  })
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  return all
+})
 
 function fmtDate(d) {
   return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
@@ -43,23 +55,10 @@ function fmtDate(d) {
 onMounted(async () => {
   try {
     const { data } = await projectsAPI.list({ owner_id: props.userId, size: 100 })
-    const projects = data.items || []
-    const allApps = []
-
+    projects.value = data.items || []
     await Promise.all(
-      projects.map(async (p) => {
-        try {
-          const res = await applicationsAPI.byProject(p.id)
-          for (const a of res.data) {
-            a._projectTitle = p.title
-            allApps.push(a)
-          }
-        } catch {}
-      })
+      projects.value.map(p => applicationsStore.fetchByProject(p.id))
     )
-
-    allApps.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    apps.value = allApps
   } catch {}
   loading.value = false
 })
