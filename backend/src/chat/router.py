@@ -2,50 +2,23 @@ import json
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional
-from pydantic import BaseModel
-from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, BackgroundTasks
-from src.database.mongodb import get_mongodb
 from src.core.dependencies import get_current_user
 from src.core.security import decode_token
-from src.core.redis import publish_message, get_redis
+from src.core.redis import get_redis
 from src.core.email import send_chat_notification_email
 from src.users.models import User
+from src.chat import repository, service
+from src.chat.schemas import ChatRoomResponse, ChatMessageResponse, SendMessageRequest
 
 logger = logging.getLogger(__name__)
-
-
-# ── Schemas ──────────────────────────────────────────
-
-class ChatRoomResponse(BaseModel):
-    id: str
-    project_id: int
-    project_title: str
-    participants: list[int]
-    last_message: Optional[str] = None
-    last_message_at: Optional[datetime] = None
-    created_at: datetime
-
-
-class ChatMessageResponse(BaseModel):
-    id: str
-    room_id: str
-    sender_id: int
-    sender_name: str
-    content: str
-    created_at: datetime
-
-
-class SendMessageRequest(BaseModel):
-    content: str
 
 
 # ── Connection Manager (in-process) ─────────────────
 
 class ConnectionManager:
     def __init__(self):
-        self.active: dict[str, list[WebSocket]] = {}  # room_id -> [ws, ...]
+        self.active: dict[str, list[WebSocket]] = {}
 
     async def connect(self, room_id: str, ws: WebSocket):
         await ws.accept()
@@ -68,28 +41,6 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# ── Helper ───────────────────────────────────────────
-
-async def get_or_create_room(project_id: int, participant_ids: list[int], project_title: str) -> dict:
-    db = await get_mongodb()
-    room = await db.chat_rooms.find_one({
-        "project_id": project_id,
-        "participants": {"$all": participant_ids}
-    })
-    if not room:
-        room = {
-            "project_id": project_id,
-            "project_title": project_title,
-            "participants": sorted(participant_ids),
-            "last_message": None,
-            "last_message_at": None,
-            "created_at": datetime.now(timezone.utc),
-        }
-        result = await db.chat_rooms.insert_one(room)
-        room["_id"] = result.inserted_id
-    return room
-
-
 # ── REST Router ──────────────────────────────────────
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -98,115 +49,35 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 @router.post("/rooms/{project_id}/{other_user_id}", response_model=ChatRoomResponse)
 async def create_or_get_room(project_id: int, other_user_id: int,
                               current_user: User = Depends(get_current_user)):
-    """Create or get existing chat room for a project between two users."""
-    from src.projects.models import Project
-    project = await Project.filter(id=project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    other = await User.filter(id=other_user_id).first()
-    if not other:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    room = await get_or_create_room(project_id, [current_user.id, other_user_id], project.title)
-    return ChatRoomResponse(
-        id=str(room["_id"]),
-        project_id=room["project_id"],
-        project_title=room.get("project_title", ""),
-        participants=room["participants"],
-        last_message=room.get("last_message"),
-        last_message_at=room.get("last_message_at"),
-        created_at=room["created_at"],
-    )
+    return await service.get_or_create_room(project_id, current_user.id, other_user_id)
 
 
 @router.get("/rooms", response_model=list[ChatRoomResponse])
 async def get_my_rooms(current_user: User = Depends(get_current_user)):
-    """Get all chat rooms for current user."""
-    mongo = await get_mongodb()
-    cursor = mongo.chat_rooms.find({"participants": current_user.id}).sort("last_message_at", -1)
-    rooms = []
-    async for room in cursor:
-        rooms.append(ChatRoomResponse(
-            id=str(room["_id"]),
-            project_id=room["project_id"],
-            project_title=room.get("project_title", ""),
-            participants=room["participants"],
-            last_message=room.get("last_message"),
-            last_message_at=room.get("last_message_at"),
-            created_at=room["created_at"],
-        ))
-    return rooms
+    return await service.get_my_rooms(current_user.id)
 
 
 @router.get("/rooms/{room_id}/messages", response_model=list[ChatMessageResponse])
-async def get_messages(room_id: str, page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=100),
+async def get_messages(room_id: str, page: int = Query(1, ge=1),
+                       size: int = Query(50, ge=1, le=100),
                        current_user: User = Depends(get_current_user)):
-    """Get paginated messages for a room."""
-    mongo = await get_mongodb()
-    room = await mongo.chat_rooms.find_one({"_id": ObjectId(room_id)})
-    if not room or current_user.id not in room["participants"]:
-        raise HTTPException(status_code=403, detail="Not a participant")
-
-    skip = (page - 1) * size
-    cursor = mongo.chat_messages.find({"room_id": room_id}).sort("created_at", -1).skip(skip).limit(size)
-    messages = []
-    async for msg in cursor:
-        messages.append(ChatMessageResponse(
-            id=str(msg["_id"]), room_id=msg["room_id"],
-            sender_id=msg["sender_id"], sender_name=msg["sender_name"],
-            content=msg["content"], created_at=msg["created_at"],
-        ))
-    return list(reversed(messages))
+    return await service.get_messages(room_id, current_user.id, page, size)
 
 
 @router.post("/rooms/{room_id}/messages", response_model=ChatMessageResponse, status_code=201)
 async def send_message_rest(room_id: str, data: SendMessageRequest, bg: BackgroundTasks,
                             current_user: User = Depends(get_current_user)):
-    """Send a message via REST (alternative to WebSocket)."""
-    mongo = await get_mongodb()
-    room = await mongo.chat_rooms.find_one({"_id": ObjectId(room_id)})
-    if not room or current_user.id not in room["participants"]:
-        raise HTTPException(status_code=403, detail="Not a participant")
-
-    msg = {
-        "room_id": room_id,
-        "sender_id": current_user.id,
-        "sender_name": current_user.full_name or current_user.username,
-        "content": data.content,
-        "created_at": datetime.now(timezone.utc),
-    }
-    result = await mongo.chat_messages.insert_one(msg)
-    msg["_id"] = result.inserted_id
-
-    # Update room
-    await mongo.chat_rooms.update_one(
-        {"_id": ObjectId(room_id)},
-        {"$set": {"last_message": data.content[:100], "last_message_at": msg["created_at"]}}
+    msg_response, ctx = await service.send_message(
+        room_id, current_user, data.content, manager.broadcast,
     )
 
-    # Broadcast via Redis pub/sub
-    broadcast_data = {
-        "id": str(msg["_id"]), "room_id": room_id,
-        "sender_id": current_user.id, "sender_name": msg["sender_name"],
-        "content": data.content, "created_at": msg["created_at"].isoformat(),
-    }
-    await publish_message(f"chat:{room_id}", broadcast_data)
-    await manager.broadcast(room_id, broadcast_data)
-
-    # Email notification to other participant
-    other_ids = [p for p in room["participants"] if p != current_user.id]
-    for uid in other_ids:
+    for uid in ctx["other_ids"]:
         other = await User.filter(id=uid).first()
         if other:
             bg.add_task(send_chat_notification_email, other.email, other.username,
-                        msg["sender_name"], room.get("project_title", ""))
-
-    return ChatMessageResponse(
-        id=str(msg["_id"]), room_id=room_id,
-        sender_id=current_user.id, sender_name=msg["sender_name"],
-        content=data.content, created_at=msg["created_at"],
-    )
+                        current_user.full_name or current_user.username,
+                        ctx["room"].get("project_title", ""))
+    return msg_response
 
 
 # ── WebSocket ────────────────────────────────────────
@@ -219,7 +90,6 @@ async def websocket_chat(ws: WebSocket, room_id: str):
     """
     await ws.accept()
 
-    # Try query param first (backwards compat), then wait for auth message
     token = ws.query_params.get("token")
     if not token:
         try:
@@ -240,19 +110,15 @@ async def websocket_chat(ws: WebSocket, room_id: str):
         await ws.close(code=4001, reason="Invalid token")
         return
 
-    # Verify room access
-    mongo = await get_mongodb()
-    room = await mongo.chat_rooms.find_one({"_id": ObjectId(room_id)})
+    room = await repository.get_room_by_id(room_id)
     if not room or user_id not in room["participants"]:
         await ws.close(code=4003, reason="Not a participant")
         return
 
-    # manager.connect without accept (already accepted above)
     if room_id not in manager.active:
         manager.active[room_id] = []
     manager.active[room_id].append(ws)
 
-    # Also subscribe to Redis pub/sub for multi-instance support
     redis = await get_redis()
     pubsub = redis.pubsub()
     await pubsub.subscribe(f"chat:{room_id}")
@@ -273,32 +139,23 @@ async def websocket_chat(ws: WebSocket, room_id: str):
     listener_task = asyncio.create_task(redis_listener())
 
     try:
+        mongo = await repository.get_room_by_id(room_id)  # noqa: just for db ref
         while True:
             data = await ws.receive_json()
             content = data.get("content", "").strip()
             if not content:
                 continue
 
-            msg = {
-                "room_id": room_id,
-                "sender_id": user_id,
-                "sender_name": sender_name,
-                "content": content,
-                "created_at": datetime.now(timezone.utc),
-            }
-            result = await mongo.chat_messages.insert_one(msg)
-
-            await mongo.chat_rooms.update_one(
-                {"_id": ObjectId(room_id)},
-                {"$set": {"last_message": content[:100], "last_message_at": msg["created_at"]}}
-            )
+            msg = await repository.insert_message(room_id, user_id, sender_name, content)
+            await repository.update_room_last_message(room_id, content, msg["created_at"])
 
             broadcast = {
-                "id": str(result.inserted_id), "room_id": room_id,
+                "id": str(msg["_id"]), "room_id": room_id,
                 "sender_id": user_id, "sender_name": sender_name,
                 "content": content, "created_at": msg["created_at"].isoformat(),
             }
             await manager.broadcast(room_id, broadcast)
+            from src.core.redis import publish_message
             await publish_message(f"chat:{room_id}", broadcast)
 
     except WebSocketDisconnect:

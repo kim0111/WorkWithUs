@@ -1,61 +1,16 @@
-from typing import Optional
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, Query
-from src.database.mongodb import get_mongodb
+from fastapi import APIRouter, Depends, Query
 from src.core.dependencies import require_role
-from src.core.redis import cache_get, cache_set
 from src.users.models import User, RoleEnum
 from src.users.schemas import UserResponse
-from src.projects.models import Project, ProjectStatus
-from src.applications.models import Application
-
-
-# -- Schemas --
-
-class AdminUserUpdate(BaseModel):
-    is_active: Optional[bool] = None
-    is_blocked: Optional[bool] = None
-    role: Optional[RoleEnum] = None
-
-
-class StatsResponse(BaseModel):
-    total_users: int
-    total_students: int
-    total_companies: int
-    total_projects: int
-    total_applications: int
-    active_projects: int
-    total_chat_messages: int = 0
-    total_notifications: int = 0
-
-
-# -- Router --
+from src.admin import service
+from src.admin.schemas import AdminUserUpdate, StatsResponse
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(current_user: User = Depends(require_role(RoleEnum.admin))):
-    cached = await cache_get("admin:stats")
-    if cached:
-        return StatsResponse(**cached)
-
-    mongo = await get_mongodb()
-    chat_count = await mongo.chat_messages.count_documents({})
-    notif_count = await mongo.notifications.count_documents({})
-
-    stats = StatsResponse(
-        total_users=await User.all().count(),
-        total_students=await User.filter(role=RoleEnum.student).count(),
-        total_companies=await User.filter(role=RoleEnum.company).count(),
-        total_projects=await Project.all().count(),
-        total_applications=await Application.all().count(),
-        active_projects=await Project.filter(status=ProjectStatus.open).count(),
-        total_chat_messages=chat_count,
-        total_notifications=notif_count,
-    )
-    await cache_set("admin:stats", stats.model_dump(), ttl=60)
-    return stats
+    return await service.get_stats()
 
 
 @router.get("/users", response_model=list[UserResponse])
@@ -63,7 +18,7 @@ async def get_all_users(
     skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_role(RoleEnum.admin)),
 ):
-    return await User.all().offset(skip).limit(limit).prefetch_related("skills")
+    return await service.get_all_users(skip, limit)
 
 
 @router.put("/users/{user_id}", response_model=UserResponse)
@@ -71,8 +26,4 @@ async def update_user(
     user_id: int, data: AdminUserUpdate,
     current_user: User = Depends(require_role(RoleEnum.admin)),
 ):
-    user = await User.filter(id=user_id).prefetch_related("skills").first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    await user.update_from_dict(data.model_dump(exclude_unset=True)).save()
-    return user
+    return await service.update_user(user_id, data.model_dump(exclude_unset=True))

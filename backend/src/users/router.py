@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from src.core.dependencies import get_current_user
-from src.users.models import User, CompanyProfile, StudentProfile, RoleEnum
+from src.users.models import User
 from src.users.schemas import (
     UserResponse, UserUpdate,
     CompanyProfileCreate, CompanyProfileResponse,
@@ -38,41 +38,23 @@ async def remove_skill(user_id: int, skill_id: int,
 
 @router.get("/{user_id}/company-profile", response_model=CompanyProfileResponse)
 async def get_company_profile(user_id: int):
-    profile = await CompanyProfile.filter(user_id=user_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Company profile not found")
-    return profile
+    return await UserService().get_company_profile(user_id)
 
 
 @router.put("/{user_id}/company-profile", response_model=CompanyProfileResponse)
 async def update_company_profile(user_id: int, data: CompanyProfileCreate,
                                  current_user: User = Depends(get_current_user)):
-    if current_user.id != user_id and current_user.role != RoleEnum.admin:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    profile = await CompanyProfile.filter(user_id=user_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Company profile not found")
-    await profile.update_from_dict(data.model_dump(exclude_unset=True)).save()
-    return profile
+    return await UserService().update_company_profile(user_id, data.model_dump(exclude_unset=True), current_user)
 
 
 # -- Student Profile --
 
 @router.get("/{user_id}/student-profile", response_model=StudentProfileResponse)
 async def get_student_profile(user_id: int):
-    profile = await StudentProfile.filter(user_id=user_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Student profile not found")
-    return profile
+    return await UserService().get_student_profile(user_id)
 
 
 @router.put("/{user_id}/student-profile", response_model=StudentProfileResponse)
 async def update_student_profile(user_id: int, data: StudentProfileCreate,
                                  current_user: User = Depends(get_current_user)):
-    if current_user.id != user_id and current_user.role != RoleEnum.admin:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    profile = await StudentProfile.filter(user_id=user_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Student profile not found")
-    await profile.update_from_dict(data.model_dump(exclude_unset=True)).save()
-    return profile
+    return await UserService().update_student_profile(user_id, data.model_dump(exclude_unset=True), current_user)
