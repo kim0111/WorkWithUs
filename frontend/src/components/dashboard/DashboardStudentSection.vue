@@ -64,6 +64,30 @@
       />
     </section>
 
+    <!-- My Teams -->
+    <section v-if="teams.length" class="dash-section">
+      <div class="section-top">
+        <h2>My Teams</h2>
+      </div>
+      <div class="dash-list">
+        <router-link
+          v-for="t in teams"
+          :key="t.id"
+          :to="`/projects/${t.project_id}`"
+          class="dash-list-item dash-list-link"
+        >
+          <div class="item-content">
+            <div class="item-title">Project #{{ t.project_id }}</div>
+            <span class="item-meta">
+              <span class="role-tag">{{ t.role }}</span>
+              <span v-if="t.is_lead" class="lead-tag">Lead</span>
+            </span>
+          </div>
+          <StatusBadge status="in_progress" />
+        </router-link>
+      </div>
+    </section>
+
     <!-- Suggested Projects -->
     <section class="dash-section">
       <div class="section-top">
@@ -89,9 +113,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+
 import { useAuthStore } from '@/stores/auth'
 import { useApplicationsStore } from '@/stores/applications'
 import { projectsAPI, reviewsAPI } from '@/api'
+import { useTeamsStore } from '@/stores/teams'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ProjectCard from '@/components/ProjectCard.vue'
 import SkeletonBlock from '@/components/SkeletonBlock.vue'
@@ -99,10 +125,12 @@ import EmptyState from '@/components/EmptyState.vue'
 
 const auth = useAuthStore()
 const applicationsStore = useApplicationsStore()
+const teamsStore = useTeamsStore()
 const projectTitles = ref({})
 const rating = ref(null)
 const suggestedProjects = ref([])
 const loading = ref(true)
+const teams = computed(() => teamsStore.myTeams)
 
 const activeStatuses = ['pending', 'accepted', 'in_progress', 'submitted', 'revision_requested', 'approved']
 const apps = computed(() => applicationsStore.myApps.slice(0, 5))
@@ -122,6 +150,7 @@ onMounted(async () => {
     const [ratingRes, projectsRes] = await Promise.allSettled([
       reviewsAPI.rating(auth.user.id),
       projectsAPI.list({ page: 1, size: 4, status: 'open' }),
+      teamsStore.fetchMy(),
     ])
 
     await applicationsStore.fetchMy()
@@ -217,5 +246,21 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.item-meta { font-size: .7rem; color: var(--gray-400); }
+.item-meta { font-size: .7rem; color: var(--gray-400); display: flex; align-items: center; gap: 4px; }
+.role-tag {
+  font-size: .625rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  color: var(--gray-600);
+  text-transform: capitalize;
+}
+.lead-tag {
+  font-size: .625rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--warning-light, #fef3c7);
+  color: var(--warning, #d97706);
+  font-weight: 600;
+}
 </style>

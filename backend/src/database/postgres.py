@@ -13,6 +13,8 @@ TORTOISE_ORM = {
                 "src.applications.models",
                 "src.reviews.models",
                 "src.portfolio.models",
+                "src.teams.models",
+                "src.tasks.models",
                 "aerich.models",
             ],
             "default_connection": "default",

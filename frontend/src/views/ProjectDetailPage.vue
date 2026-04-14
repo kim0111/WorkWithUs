@@ -16,10 +16,18 @@
         </div>
       </div>
       <div v-if="isOwner" class="detail-actions">
+        <router-link :to="`/projects/${project.id}/board`" class="btn btn-secondary btn-sm">
+          <span class="material-icons-round">view_kanban</span>Open Board
+        </router-link>
         <select class="input select" :value="project.status" @change="changeStatus($event.target.value)">
           <option value="open">Open</option><option value="in_progress">In Progress</option><option value="closed">Closed</option>
         </select>
         <button class="btn btn-danger btn-sm" @click="showDeleteConfirm = true"><span class="material-icons-round">delete</span>Delete</button>
+      </div>
+      <div v-else-if="isTeamMember || isAdmin" class="detail-actions">
+        <router-link :to="`/projects/${project.id}/board`" class="btn btn-secondary btn-sm">
+          <span class="material-icons-round">view_kanban</span>Open Board
+        </router-link>
       </div>
       <div v-if="auth.isStudent && project.status === 'open' && !isOwner && !myApp" class="detail-actions">
         <button class="btn btn-primary" @click="scrollToApply">
@@ -74,6 +82,14 @@
       <p v-else class="text-muted">No submissions yet</p>
       <FileUpload v-if="isApplicant" @file="uploadSubmission" accept="*" />
     </section>
+
+    <!-- Team -->
+    <ProjectTeamPanel
+      v-if="isOwner || isTeamMember"
+      :project-id="project.id"
+      :max-participants="project.max_participants"
+      :is-owner="isOwner"
+    />
 
     <!-- Apply -->
     <section id="apply-section" v-if="auth.isStudent && project.status === 'open' && !isOwner && !myApp" class="detail-section">
@@ -194,12 +210,14 @@ import { useToastStore } from '@/stores/toast'
 import { useProjectsStore } from '@/stores/projects'
 import { useApplicationsStore } from '@/stores/applications'
 import { filesAPI, reviewsAPI, chatAPI } from '@/api'
+import { useTeamsStore } from '@/stores/teams'
 import SkeletonBlock from '@/components/SkeletonBlock.vue'
 import FileUpload from '@/components/FileUpload.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ApplicationDetailDrawer from '@/components/ApplicationDetailDrawer.vue'
+import ProjectTeamPanel from '@/components/ProjectTeamPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -207,6 +225,7 @@ const auth = useAuthStore()
 const toast = useToastStore()
 const projectsStore = useProjectsStore()
 const applicationsStore = useApplicationsStore()
+const teamsStore = useTeamsStore()
 
 const project = ref(null)
 const applications = computed(() => applicationsStore.byProject[route.params.id] || [])
@@ -225,6 +244,10 @@ const showDeleteConfirm = ref(false)
 const isOwner = computed(() => auth.user && project.value?.owner_id === auth.user.id)
 const isAdmin = computed(() => auth.isAdmin)
 const isApplicant = computed(() => !!myApp.value && ['accepted', 'in_progress', 'submitted', 'revision_requested'].includes(myApp.value.status))
+const isTeamMember = computed(() => {
+  const members = teamsStore.byProject[route.params.id] || []
+  return members.some(m => m.user_id === auth.user?.id)
+})
 
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '' }
 function formatSize(b) { if (!b) return ''; if (b < 1024) return b + 'B'; if (b < 1048576) return (b / 1024).toFixed(1) + 'KB'; return (b / 1048576).toFixed(1) + 'MB' }
@@ -249,6 +272,9 @@ async function load() {
     project.value = projectsStore.currentProject
     try { attachments.value = (await filesAPI.list(id, 'attachment')).data } catch {}
     try { submissions.value = (await filesAPI.list(id, 'submission')).data } catch {}
+    if (auth.isAuth) {
+      await teamsStore.fetchByProject(id)
+    }
     if (isOwner.value || auth.isAdmin) {
       await applicationsStore.fetchByProject(id)
     }

@@ -14,6 +14,8 @@ TEST_MODELS = [
     "src.applications.models",
     "src.reviews.models",
     "src.portfolio.models",
+    "src.teams.models",
+    "src.tasks.models",
 ]
 
 

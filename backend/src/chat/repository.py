@@ -66,3 +66,44 @@ async def update_room_last_message(room_id: str, content: str,
         {"_id": ObjectId(room_id)},
         {"$set": {"last_message": content[:100], "last_message_at": timestamp}},
     )
+
+
+async def find_team_room(project_id: int) -> dict | None:
+    db = await get_mongodb()
+    return await db.chat_rooms.find_one({
+        "project_id": project_id,
+        "is_team_chat": True,
+    })
+
+
+async def create_team_room(project_id: int, participant_ids: list[int],
+                           project_title: str) -> dict:
+    db = await get_mongodb()
+    room = {
+        "project_id": project_id,
+        "project_title": project_title,
+        "participants": sorted(participant_ids),
+        "is_team_chat": True,
+        "last_message": None,
+        "last_message_at": None,
+        "created_at": datetime.now(timezone.utc),
+    }
+    result = await db.chat_rooms.insert_one(room)
+    room["_id"] = result.inserted_id
+    return room
+
+
+async def add_room_participant(room_id: str, user_id: int) -> None:
+    db = await get_mongodb()
+    await db.chat_rooms.update_one(
+        {"_id": ObjectId(room_id)},
+        {"$addToSet": {"participants": user_id}},
+    )
+
+
+async def remove_room_participant(room_id: str, user_id: int) -> None:
+    db = await get_mongodb()
+    await db.chat_rooms.update_one(
+        {"_id": ObjectId(room_id)},
+        {"$pull": {"participants": user_id}},
+    )

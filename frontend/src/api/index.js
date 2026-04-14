@@ -138,6 +138,28 @@ export const portfolioAPI = {
   delete: id => api.delete(`/portfolio/${id}`),
 }
 
+// ── Teams ───────────────────────────────────────────
+export const teamsAPI = {
+  byProject: pid => api.get(`/teams/project/${pid}`),
+  my: () => api.get('/teams/my'),
+  addMember: (pid, d) => api.post(`/teams/project/${pid}/members`, d),
+  updateMember: (pid, uid, d) => api.put(`/teams/project/${pid}/members/${uid}`, d),
+  removeMember: (pid, uid) => api.delete(`/teams/project/${pid}/members/${uid}`),
+  teamRoom: pid => api.post(`/chat/team-room/${pid}`),
+}
+
+// ── Tasks ───────────────────────────────────────────
+export const tasksAPI = {
+  list: (pid, params) => api.get(`/tasks/project/${pid}`, { params }),
+  create: (pid, d) => api.post(`/tasks/project/${pid}`, d),
+  get: id => api.get(`/tasks/${id}`),
+  update: (id, d) => api.put(`/tasks/${id}`, d),
+  delete: id => api.delete(`/tasks/${id}`),
+  listComments: id => api.get(`/tasks/${id}/comments`),
+  addComment: (id, d) => api.post(`/tasks/${id}/comments`, d),
+  listActivity: id => api.get(`/tasks/${id}/activity`),
+}
+
 // ── Admin ───────────────────────────────────────────
 export const adminAPI = {
   stats: () => api.get('/admin/stats'),

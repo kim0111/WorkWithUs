@@ -15,7 +15,13 @@ class ReviewResponse(BaseModel):
     id: int
     reviewer_id: int
     reviewee_id: int
+    reviewer_username: Optional[str] = None
+    reviewer_full_name: Optional[str] = None
+    reviewer_role: Optional[str] = None
+    reviewee_username: Optional[str] = None
+    reviewee_full_name: Optional[str] = None
     project_id: int
+    project_title: Optional[str] = None
     application_id: Optional[int] = None
     rating: float
     comment: Optional[str] = None

@@ -52,6 +52,12 @@ async def create_or_get_room(project_id: int, other_user_id: int,
     return await service.get_or_create_room(project_id, current_user.id, other_user_id)
 
 
+@router.post("/team-room/{project_id}", response_model=ChatRoomResponse)
+async def get_or_create_team_room(project_id: int,
+                                  current_user: User = Depends(get_current_user)):
+    return await service.get_or_create_team_room(project_id, current_user.id)
+
+
 @router.get("/rooms", response_model=list[ChatRoomResponse])
 async def get_my_rooms(current_user: User = Depends(get_current_user)):
     return await service.get_my_rooms(current_user.id)
@@ -105,10 +111,15 @@ async def websocket_chat(ws: WebSocket, room_id: str):
     try:
         payload = decode_token(token)
         user_id = int(payload["sub"])
-        sender_name = payload.get("username", f"User {user_id}")
     except Exception:
         await ws.close(code=4001, reason="Invalid token")
         return
+
+    sender_user = await User.filter(id=user_id).only("id", "username", "full_name").first()
+    if not sender_user:
+        await ws.close(code=4001, reason="User not found")
+        return
+    sender_name = sender_user.full_name or sender_user.username
 
     room = await repository.get_room_by_id(room_id)
     if not room or user_id not in room["participants"]:

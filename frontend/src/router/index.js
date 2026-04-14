@@ -10,6 +10,7 @@ const routes = [
   { path: '/projects', name: 'Projects', component: () => import('@/views/ProjectsPage.vue') },
   { path: '/projects/create', name: 'CreateProject', component: () => import('@/views/CreateProjectPage.vue'), meta: { auth: true, roles: ['company', 'admin'] } },
   { path: '/projects/:id', name: 'ProjectDetail', component: () => import('@/views/ProjectDetailPage.vue') },
+  { path: '/projects/:id/board', name: 'ProjectBoard', component: () => import('@/views/ProjectBoardPage.vue'), meta: { auth: true } },
   { path: '/profile/:id', name: 'Profile', component: () => import('@/views/ProfilePage.vue') },
   { path: '/my-applications', name: 'MyApps', component: () => import('@/views/MyApplicationsPage.vue'), meta: { auth: true, roles: ['student'] } },
   { path: '/chat', name: 'ChatList', component: () => import('@/views/ChatListPage.vue'), meta: { auth: true } },

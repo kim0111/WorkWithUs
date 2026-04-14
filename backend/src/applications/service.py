@@ -5,7 +5,9 @@ from src.core.activity import log_activity
 from src.applications import repository
 from src.applications.models import Application, ApplicationStatus
 from src.projects.models import Project
-from src.users.models import User, RoleEnum
+from src.users.models import User, RoleEnum, StudentProfile
+from src.teams import repository as teams_repo
+from src.teams.models import TeamRole
 
 
 VALID_TRANSITIONS = {
@@ -95,6 +97,21 @@ async def update_status(app_id: int, new_status: ApplicationStatus, note: str | 
         application.revision_note = note
     application.status_history = _append_history(application, new_status.value, user, note)
     await repository.save(application)
+
+    if new_status == ApplicationStatus.accepted:
+        existing = await teams_repo.get_by_project_and_user(project.id, application.applicant_id)
+        if not existing:
+            has_lead = await teams_repo.has_lead(project.id)
+            await teams_repo.add_member(
+                project.id, application.applicant_id,
+                TeamRole.other, is_lead=not has_lead,
+            )
+
+    if new_status == ApplicationStatus.completed:
+        profile = await StudentProfile.filter(user_id=application.applicant_id).first()
+        if profile:
+            profile.completed_projects_count = (profile.completed_projects_count or 0) + 1
+            await profile.save(update_fields=["completed_projects_count"])
 
     await log_activity(user.id, "update_application_status",
                        f"Changed status to {new_status.value}", "application", app_id)

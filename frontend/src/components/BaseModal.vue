@@ -67,6 +67,7 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 200;
   padding: 24px;
+  overflow-y: auto;
 }
 .modal-container {
   background: var(--white);
@@ -74,21 +75,31 @@ onUnmounted(() => {
   border-radius: 10px;
   width: 100%;
   box-shadow: var(--shadow-lg);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  margin: auto;
 }
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px 0;
+  flex-shrink: 0;
 }
 .modal-body {
   padding: 16px 24px 24px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 0 24px 20px;
+  padding: 12px 24px 20px;
+  border-top: 1px solid var(--gray-100);
+  flex-shrink: 0;
 }
 .modal-enter-active,
 .modal-leave-active {
