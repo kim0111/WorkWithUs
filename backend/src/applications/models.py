@@ -3,6 +3,7 @@ from tortoise import fields, models
 
 
 class ApplicationStatus(str, enum.Enum):
+    invited = "invited"
     pending = "pending"
     accepted = "accepted"
     rejected = "rejected"
@@ -13,12 +14,18 @@ class ApplicationStatus(str, enum.Enum):
     completed = "completed"
 
 
+class ApplicationInitiator(str, enum.Enum):
+    student = "student"
+    company = "company"
+
+
 class Application(models.Model):
     id = fields.IntField(primary_key=True)
     project = fields.ForeignKeyField("models.Project", related_name="applications", on_delete=fields.CASCADE)
     applicant = fields.ForeignKeyField("models.User", related_name="applications", on_delete=fields.CASCADE)
     cover_letter = fields.TextField(null=True)
     status = fields.CharEnumField(enum_type=ApplicationStatus, default=ApplicationStatus.pending)
+    initiator = fields.CharEnumField(enum_type=ApplicationInitiator, default=ApplicationInitiator.student)
     submission_note = fields.TextField(null=True)
     revision_note = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
