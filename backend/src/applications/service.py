@@ -11,6 +11,7 @@ from src.teams.models import TeamRole
 
 
 VALID_TRANSITIONS = {
+    ApplicationStatus.invited: [ApplicationStatus.accepted, ApplicationStatus.rejected],
     ApplicationStatus.pending: [ApplicationStatus.accepted, ApplicationStatus.rejected],
     ApplicationStatus.accepted: [ApplicationStatus.in_progress],
     ApplicationStatus.in_progress: [ApplicationStatus.submitted],
@@ -77,10 +78,17 @@ async def update_status(app_id: int, new_status: ApplicationStatus, note: str | 
                       ApplicationStatus.completed}
     applicant_statuses = {ApplicationStatus.in_progress, ApplicationStatus.submitted}
 
-    if new_status in owner_statuses and not (is_owner or is_admin):
-        raise HTTPException(status_code=403, detail="Only project owner can perform this action")
-    if new_status in applicant_statuses and not is_applicant:
-        raise HTTPException(status_code=403, detail="Only applicant can perform this action")
+    if application.status == ApplicationStatus.invited:
+        # Student accepts or declines. Owner may only "withdraw" (reject).
+        if new_status == ApplicationStatus.accepted and not (is_applicant or is_admin):
+            raise HTTPException(status_code=403, detail="Only the invited student can accept")
+        if new_status == ApplicationStatus.rejected and not (is_applicant or is_owner or is_admin):
+            raise HTTPException(status_code=403, detail="Only the student or project owner can cancel an invite")
+    else:
+        if new_status in owner_statuses and not (is_owner or is_admin):
+            raise HTTPException(status_code=403, detail="Only project owner can perform this action")
+        if new_status in applicant_statuses and not is_applicant:
+            raise HTTPException(status_code=403, detail="Only applicant can perform this action")
 
     allowed = VALID_TRANSITIONS.get(application.status, [])
     if new_status not in allowed:
