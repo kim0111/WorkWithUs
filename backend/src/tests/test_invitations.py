@@ -307,3 +307,79 @@ async def test_invite_full_project_blocked(
     }, headers=auth(company_token))
     assert r.status_code == 400
     assert "maximum number of participants" in r.json()["detail"]
+
+
+from unittest.mock import AsyncMock, patch
+from src.tests.conftest import mock_mongo
+
+
+@pytest.mark.asyncio
+async def test_invite_creates_notification_and_schedules_email(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    project_id = await _create_open_project(client, company_token, title="Cool Project")
+    student_id = (await client.get("/api/v1/auth/me", headers=auth(student_token))).json()["id"]
+
+    with patch("src.applications.router.send_application_invite_email",
+               new_callable=AsyncMock) as email_mock:
+        r = await client.post("/api/v1/applications/invite", json={
+            "project_id": project_id, "student_id": student_id,
+            "message": "Hi there!",
+        }, headers=auth(company_token))
+    assert r.status_code == 201
+
+    notifs = [d for d in mock_mongo.notifications.docs if d["user_id"] == student_id]
+    assert len(notifs) == 1
+    assert notifs[0]["notification_type"] == "invite"
+    assert "Cool Project" in notifs[0]["title"]
+    assert notifs[0]["link"] == "/my-applications"
+
+    email_mock.assert_called_once()
+    args, _kw = email_mock.call_args
+    assert args[2] == "Cool Project"
+
+
+@pytest.mark.asyncio
+async def test_accept_invite_notifies_owner(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    _, company_id, _, app_id = await _seed_invite(client, company_token, student_token)
+    mock_mongo.notifications.docs.clear()
+
+    await client.put(f"/api/v1/applications/{app_id}/status",
+                     json={"status": "accepted"}, headers=auth(student_token))
+
+    notifs = [d for d in mock_mongo.notifications.docs if d["user_id"] == company_id]
+    assert len(notifs) == 1
+    assert "accepted" in notifs[0]["title"].lower()
+
+
+@pytest.mark.asyncio
+async def test_decline_invite_notifies_owner(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    _, company_id, _, app_id = await _seed_invite(client, company_token, student_token)
+    mock_mongo.notifications.docs.clear()
+
+    await client.put(f"/api/v1/applications/{app_id}/status",
+                     json={"status": "rejected", "note": "not this time"},
+                     headers=auth(student_token))
+
+    notifs = [d for d in mock_mongo.notifications.docs if d["user_id"] == company_id]
+    assert len(notifs) == 1
+    assert "declined" in notifs[0]["title"].lower()
+
+
+@pytest.mark.asyncio
+async def test_withdraw_invite_notifies_student(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    _, _, student_id, app_id = await _seed_invite(client, company_token, student_token)
+    mock_mongo.notifications.docs.clear()
+
+    await client.put(f"/api/v1/applications/{app_id}/status",
+                     json={"status": "rejected"}, headers=auth(company_token))
+
+    notifs = [d for d in mock_mongo.notifications.docs if d["user_id"] == student_id]
+    assert len(notifs) == 1
+    assert "withdraw" in notifs[0]["title"].lower()

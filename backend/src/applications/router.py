@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, Query
 from src.core.dependencies import get_current_user
-from src.core.email import send_application_status_email, send_new_application_email, send_submission_email
+from src.core.email import (
+    send_application_status_email, send_new_application_email,
+    send_submission_email, send_application_invite_email,
+)
+from src.notifications.service import create_notification
 from src.users.models import User
 from src.applications.models import ApplicationStatus
 from src.applications import service
@@ -29,13 +33,27 @@ async def invite_student(data: ApplicationInviteCreate, bg: BackgroundTasks,
     application, project, student = await service.invite_student(
         current_user, data.project_id, data.student_id, data.message,
     )
-    # Notification + email fan-out is added in Task 4.
+    company_name = current_user.full_name or current_user.username
+    await create_notification(
+        student.id,
+        title=f"Invitation to {project.title}",
+        message=f"{company_name} invited you to join this project.",
+        notification_type="invite",
+        link="/my-applications",
+    )
+    bg.add_task(send_application_invite_email, student.email, student.username,
+                project.title, company_name)
     return application
 
 
 @router.put("/{app_id}/status", response_model=ApplicationResponse)
 async def update_status(app_id: int, data: ApplicationUpdateStatus, bg: BackgroundTasks,
                         current_user: User = Depends(get_current_user)):
+    from src.applications import repository as apps_repo
+    prev = await apps_repo.get_by_id(app_id)
+    prev_status = prev.status if prev else None
+    was_initiator_company = prev.initiator.value == "company" if prev else False
+
     application, project = await service.update_status(
         app_id, data.status, data.note, current_user,
     )
@@ -45,15 +63,43 @@ async def update_status(app_id: int, data: ApplicationUpdateStatus, bg: Backgrou
                       ApplicationStatus.completed}
 
     applicant = await User.filter(id=application.applicant_id).first()
+    owner = await User.filter(id=project.owner_id).first()
+
     if applicant:
         if data.status in owner_statuses:
             bg.add_task(send_application_status_email, applicant.email, applicant.username,
                         project.title, data.status.value)
         elif data.status == ApplicationStatus.submitted:
-            owner = await User.filter(id=project.owner_id).first()
             if owner:
                 bg.add_task(send_submission_email, owner.email, owner.username,
                             project.title, applicant.username)
+
+    if prev_status == ApplicationStatus.invited and was_initiator_company:
+        if data.status == ApplicationStatus.accepted and owner:
+            await create_notification(
+                owner.id,
+                title=f"{applicant.username} accepted your invitation",
+                message=f"For project '{project.title}'.",
+                notification_type="info",
+                link=f"/projects/{project.id}",
+            )
+        elif data.status == ApplicationStatus.rejected:
+            if current_user.id == application.applicant_id and owner:
+                await create_notification(
+                    owner.id,
+                    title=f"{applicant.username} declined your invitation",
+                    message=f"For project '{project.title}'.",
+                    notification_type="info",
+                    link=f"/projects/{project.id}",
+                )
+            elif current_user.id == project.owner_id and applicant:
+                await create_notification(
+                    applicant.id,
+                    title=f"Invitation withdrawn: {project.title}",
+                    message="The company cancelled this invitation.",
+                    notification_type="info",
+                    link="/my-applications",
+                )
     return application
 
 
