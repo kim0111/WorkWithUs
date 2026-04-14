@@ -17,6 +17,7 @@ const routes = [
   { path: '/chat/:roomId', name: 'ChatRoom', component: () => import('@/views/ChatRoomPage.vue'), meta: { auth: true } },
   { path: '/notifications', name: 'Notifications', component: () => import('@/views/NotificationsPage.vue'), meta: { auth: true } },
   { path: '/admin', name: 'Admin', component: () => import('@/views/AdminPage.vue'), meta: { auth: true, admin: true } },
+  { path: '/students', name: 'Students', component: () => import('@/views/StudentsPage.vue'), meta: { auth: true, roles: ['company', 'admin'] } },
   { path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('@/views/NotFoundPage.vue') },
 ]
 

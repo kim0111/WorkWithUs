@@ -12,6 +12,7 @@
 
       <div class="nav-links">
         <router-link to="/projects" class="nav-link">Projects</router-link>
+        <router-link v-if="auth.isCompany || auth.isAdmin" to="/students" class="nav-link">Students</router-link>
         <router-link v-if="auth.isStudent" to="/my-applications" class="nav-link">Applications</router-link>
         <router-link v-if="auth.isCompany || auth.isAdmin" to="/projects/create" class="nav-link">New Project</router-link>
         <router-link v-if="auth.isAuth" to="/chat" class="nav-link">Chat</router-link>
@@ -61,6 +62,9 @@
           <div class="drawer-links">
             <router-link to="/projects" class="drawer-link" @click="drawerOpen = false">
               <span class="material-icons-round">work_outline</span>Projects
+            </router-link>
+            <router-link v-if="auth.isCompany || auth.isAdmin" to="/students" class="drawer-link" @click="drawerOpen = false">
+              <span class="material-icons-round">groups</span>Students
             </router-link>
             <router-link v-if="auth.isStudent" to="/my-applications" class="drawer-link" @click="drawerOpen = false">
               <span class="material-icons-round">description</span>Applications

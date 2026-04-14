@@ -18,6 +18,9 @@
       <button v-if="isMe" class="btn btn-secondary btn-sm" @click="showEdit = true">
         <span class="material-icons-round">edit</span>Edit
       </button>
+      <button v-else-if="canInvite" class="btn btn-primary btn-sm" @click="showInvite = true">
+        <span class="material-icons-round">person_add</span>Invite to Project
+      </button>
     </div>
 
     <!-- Role-specific Info Grid -->
@@ -62,6 +65,8 @@
       :role="user.role"
       @saved="onSaved"
     />
+
+    <InviteStudentModal v-if="user && canInvite" v-model="showInvite" :studentId="user.id" />
   </div>
   <div v-else class="loading-center"><div class="spinner"></div></div>
 </template>
@@ -82,6 +87,7 @@ import StudentPortfolioTab from '@/components/profile/StudentPortfolioTab.vue'
 import StudentAppsTab from '@/components/profile/StudentAppsTab.vue'
 import ReviewsTab from '@/components/profile/ReviewsTab.vue'
 import EditProfileModal from '@/components/profile/EditProfileModal.vue'
+import InviteStudentModal from '@/components/InviteStudentModal.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -94,10 +100,12 @@ const rating = ref(null)
 const projectCount = ref(0)
 const activeTab = ref('')
 const showEdit = ref(false)
+const showInvite = ref(false)
 
 const isMe = computed(() => auth.user?.id === Number(route.params.id))
 const isCompany = computed(() => user.value?.role === 'company')
 const isStudent = computed(() => user.value?.role === 'student')
+const canInvite = computed(() => auth.user?.role === 'company' && isStudent.value && !isMe.value)
 const roleBadge = computed(() => ({
   student: 'badge-teal',
   company: 'badge-accent',
