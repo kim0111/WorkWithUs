@@ -18,3 +18,13 @@ nexus-hub.asia, www.nexus-hub.asia {
 		file_server
 	}
 }
+
+files.nexus-hub.asia {
+	encode gzip zstd
+
+	request_body {
+		max_size 50MB
+	}
+
+	reverse_proxy minio:9000
+}

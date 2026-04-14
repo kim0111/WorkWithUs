@@ -117,14 +117,27 @@ To add another domain or subdomain:
 
 Certificate state persists in the `caddy_data` named volume. Never delete it casually — Let's Encrypt rate-limits new issuance per domain.
 
-## 8. Exposing MinIO publicly (later)
+## 8. Public object storage at `files.nexus-hub.asia`
 
-If avatars/submissions need to be downloadable by browsers, MinIO has to be reachable from outside. Options:
+Caddy reverse-proxies `files.nexus-hub.asia` → `minio:9000`. Object URLs look like `https://files.nexus-hub.asia/<bucket>/<key>`.
 
-- **Subdomain route**: add `files.nexus-hub.asia` DNS + a new site block in `caddy/Caddyfile` reverse-proxying to `minio:9000`. Object URLs become `https://files.nexus-hub.asia/bucket/key`.
-- **Proxy through the backend**: have the backend return presigned URLs with a rewritten hostname. More work; gives you auth.
+**Prerequisites (done once):**
 
-Neither is required for the MVP deploy — internal-only MinIO works as long as all file access happens via the backend.
+1. DNS A record at ps.kz: `files.nexus-hub.asia A 206.81.30.30`
+2. Redeploy so Caddy mints the cert: `docker compose -f docker-compose.prod.yml up -d --build caddy`
+3. Watch `docker compose -f docker-compose.prod.yml logs -f caddy` until you see `certificate obtained successfully` for the new hostname
+
+**Buckets are private by default.** Anonymous `GET` returns 403. To let browsers load avatars or other public assets directly, set a read-only anonymous policy on the specific bucket. Easiest path is `mc` from inside the minio container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec minio sh -c \
+  "mc alias set local http://localhost:9000 \$MINIO_ROOT_USER \$MINIO_ROOT_PASSWORD && \
+   mc anonymous set download local/avatars"
+```
+
+Only open buckets whose contents are genuinely public. `submissions`, `project-files`, and `resumes` should stay private — downloads for those go through the authenticated `/api/v1/files/:id/download` backend route.
+
+**Note on presigned URLs.** The backend's `MINIO_ENDPOINT` is `minio:9000` (internal), so any presigned URL it generates uses that host. If you ever want to hand presigned URLs back to browsers, either change `MINIO_ENDPOINT` to `files.nexus-hub.asia` (and set `MINIO_SECURE=true`) or rewrite the host in the URL before returning it.
 
 ## 9. Backups (manual, minimum viable)
 

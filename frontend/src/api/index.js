@@ -111,8 +111,7 @@ export const chatAPI = {
   connectWs: (roomId) => {
     const token = localStorage.getItem('access_token')
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const host = window.location.hostname
-    return new WebSocket(`${proto}://${host}:8000/api/v1/chat/ws/${roomId}?token=${token}`)
+    return new WebSocket(`${proto}://${window.location.host}/api/v1/chat/ws/${roomId}?token=${token}`)
   },
 }
 
