@@ -1,6 +1,7 @@
 from src.users.models import User, CompanyProfile, StudentProfile, RoleEnum
 from tortoise.transactions import in_transaction
 from src.core.security import hash_password
+from src.core.config import settings
 
 
 async def get_user_by_email(email: str) -> User | None:
@@ -30,7 +31,7 @@ async def create_user(email: str, username: str, password: str,
             email=email, username=username,
             hashed_password=hash_password(password),
             full_name=full_name, role=role,
-            is_active=False,
+            is_active=not settings.EMAIL_VERIFICATION_REQUIRED,
         )
         if role == RoleEnum.company:
             await CompanyProfile.create(user=user, company_name=username)

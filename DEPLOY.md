@@ -32,7 +32,7 @@ Firewall — only HTTP(S) and SSH reach the internet:
 ```bash
 ufw allow OpenSSH
 ufw allow 80/tcp
-ufw allow 443/tcp   # reserved for later, once TLS is in place
+ufw allow 443/tcp
 ufw --force enable
 ```
 
@@ -55,13 +55,15 @@ cp .env.prod.example .env
 cp backend/.env.prod.example backend/.env
 ```
 
-Generate strong secrets:
+Generate strong secrets. Use `-hex` (URL-safe [0-9a-f]) — base64 output contains `/`, `+`, `=` which break URL parsing when embedded in `DATABASE_URL`:
 
 ```bash
-openssl rand -base64 32   # Postgres password
-openssl rand -base64 32   # MinIO password
-openssl rand -base64 48   # JWT SECRET_KEY
+openssl rand -hex 32   # Postgres password
+openssl rand -hex 32   # MinIO password
+openssl rand -hex 48   # JWT SECRET_KEY
 ```
+
+The `POSTGRES_PASSWORD` in root `.env` must equal the password inside `DATABASE_URL` in `backend/.env`. Likewise `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` must equal `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`.
 
 Edit both files:
 
@@ -80,18 +82,18 @@ First build takes a few minutes (Vue build + Python deps). Watch the logs:
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
-On successful boot you should see backend `Uvicorn running on http://0.0.0.0:8000` and all 4 data services `service_healthy`.
+On successful boot you should see backend `Uvicorn running on http://0.0.0.0:8000`, all 4 data services `service_healthy`, and caddy `certificate obtained successfully` for `nexus-hub.asia` (this only happens if the domain's A record already points at the droplet).
 
 ## 5. Verify
 
 From your laptop:
 
 ```bash
-curl http://<droplet-ip>/api/v1/health   # or any public endpoint
-curl -I http://<droplet-ip>/             # should return 200 with nginx
+curl -I https://nexus-hub.asia/                   # should return 200 over TLS
+curl https://nexus-hub.asia/api/v1/projects/      # or any public endpoint
 ```
 
-Open `http://<droplet-ip>` in a browser — the Vue SPA loads, and its calls to `/api/v1/*` resolve through nginx to the backend.
+Open `https://nexus-hub.asia` in a browser — the Vue SPA loads, and its calls to `/api/v1/*` resolve through caddy to the backend. Caddy also auto-redirects HTTP → HTTPS and renews certificates in the background.
 
 ## 6. Deploying updates
 
@@ -103,23 +105,23 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 `aerich upgrade` runs automatically on backend boot, so schema migrations apply on each deploy.
 
-## 7. Adding a domain + TLS (later)
+## 7. Domain + TLS
 
-When a DNS record points at the droplet:
+TLS is automatic — caddy provisions Let's Encrypt certificates on first boot and renews them in the background.
 
-1. Add a `server_name yourdomain.com;` line to `nginx/nginx.conf`.
-2. Swap the `nginx` service image for one that bundles Certbot, or add a sidecar. Recommended approach:
-   - Add a `certbot` service sharing `/etc/letsencrypt` with nginx.
-   - Run `docker compose run --rm certbot certonly --webroot ...` once to mint the cert.
-   - Add a 443 listener to `nginx.conf` and redirect 80 → 443.
+To add another domain or subdomain:
 
-Alternatively, swap nginx for Caddy — it handles TLS automatically with a one-line config.
+1. Add an `A` record at the DNS provider pointing to the droplet IP.
+2. Add the hostname to the top line of `caddy/Caddyfile`, e.g. `nexus-hub.asia, www.nexus-hub.asia, app.nexus-hub.asia {`.
+3. Redeploy: `docker compose -f docker-compose.prod.yml up -d --build caddy`. Caddy mints the new cert within ~20 seconds.
+
+Certificate state persists in the `caddy_data` named volume. Never delete it casually — Let's Encrypt rate-limits new issuance per domain.
 
 ## 8. Exposing MinIO publicly (later)
 
 If avatars/submissions need to be downloadable by browsers, MinIO has to be reachable from outside. Options:
 
-- **Subdomain route**: add `files.yourdomain.com` → nginx → `minio:9000`. Object URLs become `https://files.yourdomain.com/bucket/key`.
+- **Subdomain route**: add `files.nexus-hub.asia` DNS + a new site block in `caddy/Caddyfile` reverse-proxying to `minio:9000`. Object URLs become `https://files.nexus-hub.asia/bucket/key`.
 - **Proxy through the backend**: have the backend return presigned URLs with a rewritten hostname. More work; gives you auth.
 
 Neither is required for the MVP deploy — internal-only MinIO works as long as all file access happens via the backend.
@@ -145,6 +147,8 @@ Copy backups off-droplet (rsync or DO Spaces) so a droplet failure doesn't lose 
 ## Troubleshooting
 
 - **Backend crash on first boot, `Aerich` errors** — the DB may not be ready despite healthcheck; `docker compose logs backend` will show the real error. Re-run `docker compose up -d` once.
-- **502 from nginx on `/api/*`** — backend isn't listening yet. `docker compose logs backend` to see why.
+- **Backend crash, `Port could not be cast to integer value` / `Port is not an integer`** — the password inside `DATABASE_URL` contains a URL-special character (`/`, `+`, `=`, `@`, `:`) that breaks URL parsing. Regenerate passwords with `openssl rand -hex 32` (URL-safe hex only). You must also wipe the postgres volume (`docker compose -f docker-compose.prod.yml down -v`) if it was initialized with the bad password, then bring it back up.
+- **502 from caddy on `/api/*`** — backend isn't listening yet. `docker compose logs backend` to see why.
+- **Caddy can't get a certificate** — confirm DNS resolves to the droplet IP (`dig +short nexus-hub.asia`), ports 80 and 443 are reachable externally, and the domain is listed at the top of `caddy/Caddyfile`. Let's Encrypt rate limits: 5 failures/hour/account, 50 certificates/week/domain.
 - **Out of memory** — 4 GB is tight with all four datastores. `docker stats` to confirm. MongoDB is usually the heaviest; set `--wiredTigerCacheSizeGB=0.5` in the mongo command if needed.
-- **Frontend shows but API calls 404** — nginx config missing or mis-ordered; the WebSocket `location ~ ^/api/v1/chat/ws/` block must appear before the generic `/api/` block.
+- **Email not delivered** — DigitalOcean blocks outbound SMTP (port 25/465/587) on new droplets. Use an ESP (SendGrid/Mailgun/Resend) over port 2525 or HTTPS API, or open a DO ticket to request SMTP unblock.

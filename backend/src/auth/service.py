@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from src.core.config import settings
 from src.core.security import verify_password, create_access_token, create_refresh_token, decode_token
 from src.core.redis import blacklist_token
 from src.core.activity import log_activity
@@ -32,7 +33,7 @@ class AuthService:
         user = await repository.get_user_by_username(username)
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        if not user.is_active:
+        if settings.EMAIL_VERIFICATION_REQUIRED and not user.is_active:
             raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
         if user.is_blocked:
             raise HTTPException(status_code=403, detail="Account is blocked")

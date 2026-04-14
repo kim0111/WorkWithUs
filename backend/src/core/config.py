@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAIL_FROM: str = "noreply@nexushub.com"
     EMAIL_FROM_NAME: str = "NexusHub"
+    EMAIL_VERIFICATION_REQUIRED: bool = True
 
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]

@@ -12,7 +12,7 @@
     </div>
     <div class="auth-right">
       <!-- Registration form -->
-      <div v-if="!registered" class="auth-form-wrap">
+      <div v-if="!registeredUser" class="auth-form-wrap">
         <h2>Create Account</h2>
         <p class="auth-sub">Fill in your details to get started</p>
         <form @submit.prevent="go" class="form">
@@ -33,8 +33,8 @@
         <p class="auth-switch">Already have an account? <router-link to="/login">Sign in</router-link></p>
       </div>
 
-      <!-- Verify email prompt (shown after successful registration) -->
-      <div v-else class="auth-form-wrap verify-prompt">
+      <!-- Verify email prompt (shown when verification is required) -->
+      <div v-else-if="registeredUser && !registeredUser.is_active" class="auth-form-wrap verify-prompt">
         <div class="verify-icon">
           <span class="material-icons-round">mark_email_unread</span>
         </div>
@@ -49,6 +49,16 @@
         </div>
         <router-link to="/login" class="btn btn-primary btn-lg full-w">Go to Sign In</router-link>
       </div>
+
+      <!-- Success (verification not required) -->
+      <div v-else class="auth-form-wrap verify-prompt">
+        <div class="verify-icon">
+          <span class="material-icons-round">check_circle</span>
+        </div>
+        <h2>Account created</h2>
+        <p class="auth-sub">Your account is ready. Sign in to continue.</p>
+        <router-link to="/login" class="btn btn-primary btn-lg full-w">Go to Sign In</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -58,14 +68,13 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const loading = ref(false)
 const err = ref('')
-const registered = ref(false)
+const registeredUser = ref(null)
 const roles = [{ value: 'student', label: 'Student', icon: 'school' }, { value: 'company', label: 'Company', icon: 'business' }]
 const form = reactive({ email: '', username: '', password: '', full_name: '', role: 'student' })
 async function go() {
   err.value = ''; loading.value = true
   try {
-    await auth.register(form)
-    registered.value = true
+    registeredUser.value = await auth.register(form)
   }
   catch (e) { err.value = e.response?.data?.detail || 'Failed' }
   finally { loading.value = false }

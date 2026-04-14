@@ -1,6 +1,7 @@
 import secrets
 from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
+from src.core.config import settings
 from src.core.dependencies import get_current_user, oauth2_scheme
 from src.core.email import send_verification_email, send_welcome_email
 from src.core.redis import rate_limit_check, cache_set, cache_get, cache_delete
@@ -17,10 +18,12 @@ async def register(data: RegisterRequest, bg: BackgroundTasks):
     service = AuthService()
     user = await service.register(data)
 
-    verify_token = secrets.token_urlsafe(32)
-    await cache_set(f"email_verify:{verify_token}", str(user.id), ttl=86400)
-
-    bg.add_task(send_verification_email, user.email, user.username, verify_token)
+    if settings.EMAIL_VERIFICATION_REQUIRED:
+        verify_token = secrets.token_urlsafe(32)
+        await cache_set(f"email_verify:{verify_token}", str(user.id), ttl=86400)
+        bg.add_task(send_verification_email, user.email, user.username, verify_token)
+    else:
+        bg.add_task(send_welcome_email, user.email, user.username)
     return user
 
 

@@ -1,0 +1,20 @@
+nexus-hub.asia, www.nexus-hub.asia {
+	encode gzip zstd
+
+	request_body {
+		max_size 50MB
+	}
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

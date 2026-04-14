@@ -35,8 +35,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function register(payload) {
-    await authAPI.register(payload)
-    // Do not auto-login — user must verify email first
+    const { data } = await authAPI.register(payload)
+    return data
   }
 
   async function logout(callApi = true) {

@@ -69,12 +69,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  nginx:
+  caddy:
     build:
       context: ./
-      dockerfile: nginx/Dockerfile
+      dockerfile: caddy/Dockerfile
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
     restart: unless-stopped
@@ -84,3 +88,5 @@ volumes:
   mongo_data:
   redis_data:
   minio_data:
+  caddy_data:
+  caddy_config:
