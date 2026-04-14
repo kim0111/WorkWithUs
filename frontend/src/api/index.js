@@ -63,6 +63,7 @@ export const usersAPI = {
   updateCompanyProfile: (id, d) => api.put(`/users/${id}/company-profile`, d),
   getStudentProfile: id => api.get(`/users/${id}/student-profile`),
   updateStudentProfile: (id, d) => api.put(`/users/${id}/student-profile`, d),
+  search: params => api.get('/users/search', { params }),
 }
 
 // ── Skills ──────────────────────────────────────────
@@ -86,6 +87,7 @@ export const applicationsAPI = {
   updateStatus: (id, d) => api.put(`/applications/${id}/status`, d),
   byProject: pid => api.get(`/applications/project/${pid}`),
   my: () => api.get('/applications/my'),
+  invite: d => api.post('/applications/invite', d),
 }
 
 // ── Files ───────────────────────────────────────────

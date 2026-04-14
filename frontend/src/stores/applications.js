@@ -40,6 +40,11 @@ export const useApplicationsStore = defineStore('applications', () => {
     return data
   }
 
+  async function invite(payload) {
+    const { data } = await applicationsAPI.invite(payload)
+    return data
+  }
+
   async function updateStatus(id, payload) {
     const { data } = await applicationsAPI.updateStatus(id, payload)
     const i = myApps.value.findIndex(a => a.id === id)
@@ -51,5 +56,5 @@ export const useApplicationsStore = defineStore('applications', () => {
     return data
   }
 
-  return { myApps, byProject, loading, error, fetchMy, fetchByProject, apply, updateStatus }
+  return { myApps, byProject, loading, error, fetchMy, fetchByProject, apply, invite, updateStatus }
 })

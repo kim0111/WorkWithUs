@@ -13,6 +13,7 @@ const props = defineProps({
 const colorMap = {
   open: 'status-green',
   in_progress: 'status-amber',
+  invited: 'status-blue',
   closed: 'status-red',
   rejected: 'status-red',
   revision_requested: 'status-red',
@@ -70,5 +71,13 @@ const formatted = computed(() =>
 [data-theme="dark"] .status-purple {
   background: #2e1065;
   color: #c4b5fd;
+}
+.status-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+[data-theme="dark"] .status-blue {
+  background: #1e3a8a;
+  color: #bfdbfe;
 }
 </style>
