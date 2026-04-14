@@ -93,11 +93,18 @@ const actionButtons = computed(() => {
   if (!props.application) return []
   const s = props.application.status
   if (props.viewAs === 'student') {
+    if (s === 'invited') return [
+      { status: 'accepted', label: 'Accept Invitation', icon: 'check', class: 'btn btn-primary btn-sm' },
+      { status: 'rejected', label: 'Decline', icon: 'close', class: 'btn btn-danger btn-sm', requiresNote: true },
+    ]
     if (s === 'accepted') return [{ status: 'in_progress', label: 'Start Working', icon: 'play_arrow', class: 'btn btn-primary btn-sm' }]
     if (s === 'in_progress' || s === 'revision_requested') return [{ status: 'submitted', label: 'Submit Work', icon: 'send', class: 'btn btn-primary btn-sm', requiresNote: true }]
     return []
   }
   if (props.viewAs === 'company') {
+    if (s === 'invited') return [
+      { status: 'rejected', label: 'Withdraw Invite', icon: 'undo', class: 'btn btn-ghost btn-sm' },
+    ]
     if (s === 'pending') return [
       { status: 'accepted', label: 'Accept', icon: 'check', class: 'btn btn-primary btn-sm' },
       { status: 'rejected', label: 'Reject', icon: 'close', class: 'btn btn-danger btn-sm' },
