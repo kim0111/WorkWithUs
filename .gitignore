@@ -12,3 +12,5 @@ uploads/
 .idea/
 documentation.md
 *.pyc
+ROADMAP.md
+doc.md

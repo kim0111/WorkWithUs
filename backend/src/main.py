@@ -20,6 +20,8 @@ from src.notifications.router import router as notifications_router
 from src.reviews.router import router as reviews_router
 from src.portfolio.router import router as portfolio_router
 from src.admin.router import router as admin_router
+from src.teams.router import router as teams_router
+from src.tasks.router import router as tasks_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -63,7 +65,8 @@ app.add_middleware(
 )
 
 for r in [auth_router, users_router, skills_router, projects_router, applications_router,
-          files_router, chat_router, notifications_router, reviews_router, portfolio_router, admin_router]:
+          files_router, chat_router, notifications_router, reviews_router, portfolio_router, admin_router,
+          teams_router, tasks_router]:
     app.include_router(r, prefix=settings.API_PREFIX)
 
 

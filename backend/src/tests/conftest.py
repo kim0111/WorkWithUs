@@ -14,6 +14,8 @@ TEST_MODELS = [
     "src.applications.models",
     "src.reviews.models",
     "src.portfolio.models",
+    "src.teams.models",
+    "src.tasks.models",
 ]
 
 
@@ -173,23 +175,24 @@ PATCHES = [
     ("src.users.service.cache_get", mock_cache_get),
     ("src.users.service.cache_set", mock_cache_set),
     ("src.users.service.cache_delete", mock_cache_delete),
-    ("src.skills.router.cache_get", mock_cache_get),
-    ("src.skills.router.cache_set", mock_cache_set),
-    ("src.skills.router.cache_delete", mock_cache_delete),
-    ("src.projects.router.cache_delete_pattern", mock_cache_delete_pattern),
-    ("src.admin.router.cache_get", mock_cache_get),
-    ("src.admin.router.cache_set", mock_cache_set),
-    ("src.chat.router.publish_message", mock_publish_message),
+    ("src.skills.service.cache_get", mock_cache_get),
+    ("src.skills.service.cache_set", mock_cache_set),
+    ("src.skills.service.cache_delete", mock_cache_delete),
+    ("src.projects.service.cache_delete_pattern", mock_cache_delete_pattern),
+    ("src.admin.service.cache_get", mock_cache_get),
+    ("src.admin.service.cache_set", mock_cache_set),
+    ("src.chat.service.publish_message", mock_publish_message),
     # MongoDB
     ("src.database.mongodb.get_mongodb", mock_get_mongodb),
     ("src.database.mongodb.init_mongodb", mock_init_mongodb),
-    ("src.notifications.router.get_mongodb", mock_get_mongodb),
-    ("src.chat.router.get_mongodb", mock_get_mongodb),
-    ("src.admin.router.get_mongodb", mock_get_mongodb),
+    ("src.notifications.repository.get_mongodb", mock_get_mongodb),
+    ("src.chat.repository.get_mongodb", mock_get_mongodb),
+    ("src.admin.repository.get_mongodb", mock_get_mongodb),
     # Notification counters
-    ("src.notifications.router.incr_counter", mock_incr_counter),
-    ("src.notifications.router.get_counter", mock_get_counter),
-    ("src.notifications.router.reset_counter", mock_reset_counter),
+    ("src.notifications.service.incr_counter", mock_incr_counter),
+    ("src.notifications.service.get_counter", mock_get_counter),
+    ("src.notifications.service.reset_counter", mock_reset_counter),
+    ("src.notifications.service.get_redis", AsyncMock(return_value=MagicMock(decr=AsyncMock()))),
     # Chat Redis
     ("src.chat.router.get_redis", AsyncMock(return_value=MagicMock(pubsub=MagicMock(return_value=MagicMock(
         subscribe=AsyncMock(), unsubscribe=AsyncMock(), close=AsyncMock(),
@@ -197,7 +200,7 @@ PATCHES = [
     ))))),
     # Activity logging
     ("src.auth.service.log_activity", AsyncMock()),
-    ("src.applications.router.log_activity", AsyncMock()),
+    ("src.applications.service.log_activity", AsyncMock()),
     # Email
     ("src.core.email._send_smtp", AsyncMock()),
 ]
