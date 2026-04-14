@@ -123,3 +123,33 @@ async def test_invited_cannot_jump_to_in_progress(
     )
     assert r.status_code == 400
     assert "Cannot transition" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_company_cannot_accept_invite(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    """Owner can withdraw (reject) an invite but cannot accept on the student's behalf."""
+    _, _, _, app_id = await _seed_invite(client, company_token, student_token)
+
+    r = await client.put(
+        f"/api/v1/applications/{app_id}/status",
+        json={"status": "accepted"}, headers=auth(company_token),
+    )
+    assert r.status_code == 403
+    assert "student" in r.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_admin_can_accept_invite_on_behalf(
+    client: AsyncClient, company_token: str, student_token: str, admin_token: str
+):
+    """Admin override: admin can accept an invite on the student's behalf."""
+    _, _, _, app_id = await _seed_invite(client, company_token, student_token)
+
+    r = await client.put(
+        f"/api/v1/applications/{app_id}/status",
+        json={"status": "accepted"}, headers=auth(admin_token),
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "accepted"
