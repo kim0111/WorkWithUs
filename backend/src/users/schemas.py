@@ -67,3 +67,24 @@ class StudentProfileResponse(StudentProfileCreate):
     resume_url: Optional[str] = None
     class Config:
         from_attributes = True
+
+
+class StudentSearchItem(BaseModel):
+    id: int
+    username: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    skills: list[SkillOut] = []
+    rating: float = 0.0
+    completed_projects_count: int = 0
+    is_available: bool = True
+    class Config:
+        from_attributes = True
+
+
+class StudentSearchResponse(BaseModel):
+    items: list[StudentSearchItem]
+    total: int
+    page: int
+    size: int
