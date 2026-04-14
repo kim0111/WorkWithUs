@@ -139,3 +139,40 @@ async def get_project_applications(project_id: int, page: int, size: int,
 
 async def get_my_applications(user: User) -> list[Application]:
     return await repository.get_by_applicant(user.id)
+
+
+async def invite_student(user: User, project_id: int, student_id: int,
+                         message: str | None) -> tuple[Application, Project, User]:
+    if user.role != RoleEnum.company:
+        raise HTTPException(status_code=403, detail="Only companies can send invites")
+
+    project = await Project.filter(id=project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not your project")
+    if project.status.value != "open":
+        raise HTTPException(status_code=400, detail="Project is not open")
+
+    student = await User.filter(id=student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if student.role != RoleEnum.student:
+        raise HTTPException(status_code=400, detail="Target user is not a student")
+
+    if await repository.exists(project_id, student_id):
+        raise HTTPException(status_code=400, detail="Student already invited or applied to this project")
+
+    active_count = await repository.count_active(project_id)
+    if active_count >= project.max_participants:
+        raise HTTPException(status_code=400, detail="Project has reached maximum number of participants")
+
+    application = await repository.create_invite(project_id, student_id, message)
+    application.status_history = _append_history(application, "invited", user, None)
+    await repository.save(application)
+
+    await log_activity(user.id, "invite",
+                       f"Invited {student.username} to '{project.title}'",
+                       "application", application.id)
+
+    return application, project, student

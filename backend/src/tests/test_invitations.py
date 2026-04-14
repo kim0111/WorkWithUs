@@ -153,3 +153,157 @@ async def test_admin_can_accept_invite_on_behalf(
     )
     assert r.status_code == 200
     assert r.json()["status"] == "accepted"
+
+
+async def _create_open_project(client, company_token, title="Invite me", max_participants=2):
+    r = await client.post("/api/v1/projects/", json={
+        "title": title, "description": "description for invite",
+        "max_participants": max_participants,
+    }, headers=auth(company_token))
+    return r.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_invite_student_happy_path(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    project_id = await _create_open_project(client, company_token)
+    student_id = (await client.get("/api/v1/auth/me", headers=auth(student_token))).json()["id"]
+
+    r = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": student_id,
+        "message": "We'd love to have you on this.",
+    }, headers=auth(company_token))
+    assert r.status_code == 201
+    body = r.json()
+    assert body["status"] == "invited"
+    assert body["initiator"] == "company"
+    assert body["applicant_id"] == student_id
+    assert body["cover_letter"] == "We'd love to have you on this."
+    assert len(body["status_history"]) == 1
+    assert body["status_history"][0]["status"] == "invited"
+
+
+@pytest.mark.asyncio
+async def test_only_company_can_invite(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    project_id = await _create_open_project(client, company_token)
+    student_id = (await client.get("/api/v1/auth/me", headers=auth(student_token))).json()["id"]
+    r = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": student_id,
+    }, headers=auth(student_token))
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_invite_requires_project_ownership(
+    client: AsyncClient, student_token: str
+):
+    """A company that doesn't own the project can't invite to it."""
+    await client.post("/api/v1/auth/register", json={
+        "email": "c2@test.com", "username": "company2",
+        "password": "pass123", "role": "company",
+    })
+    from src.tests.conftest import mock_redis_store
+    for key in list(mock_redis_store):
+        if key.startswith("email_verify:"):
+            token = key.split(":", 1)[1]
+            await client.get(f"/api/v1/auth/verify-email?token={token}")
+    other_login = await client.post("/api/v1/auth/login",
+                                    data={"username": "company2", "password": "pass123"})
+    other_company_token = other_login.json()["access_token"]
+
+    await client.post("/api/v1/auth/register", json={
+        "email": "c1@test.com", "username": "company1b",
+        "password": "pass123", "role": "company",
+    })
+    for key in list(mock_redis_store):
+        if key.startswith("email_verify:"):
+            token = key.split(":", 1)[1]
+            await client.get(f"/api/v1/auth/verify-email?token={token}")
+    primary_login = await client.post("/api/v1/auth/login",
+                                      data={"username": "company1b", "password": "pass123"})
+    primary_token = primary_login.json()["access_token"]
+    project_id = await _create_open_project(client, primary_token)
+
+    student_id = (await client.get("/api/v1/auth/me", headers=auth(student_token))).json()["id"]
+    r = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": student_id,
+    }, headers=auth(other_company_token))
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_invite_non_student_is_rejected(
+    client: AsyncClient, company_token: str
+):
+    await client.post("/api/v1/auth/register", json={
+        "email": "c2@test.com", "username": "company2",
+        "password": "pass123", "role": "company",
+    })
+    from src.tests.conftest import mock_redis_store
+    for key in list(mock_redis_store):
+        if key.startswith("email_verify:"):
+            token = key.split(":", 1)[1]
+            await client.get(f"/api/v1/auth/verify-email?token={token}")
+    other = (await client.post("/api/v1/auth/login",
+                               data={"username": "company2", "password": "pass123"})).json()
+    project_id = await _create_open_project(client, company_token)
+    other_me = (await client.get("/api/v1/auth/me",
+                                  headers=auth(other["access_token"]))).json()
+
+    r = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": other_me["id"],
+    }, headers=auth(company_token))
+    assert r.status_code == 400
+    assert "not a student" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_invite_duplicate_blocked(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    project_id = await _create_open_project(client, company_token)
+    student_id = (await client.get("/api/v1/auth/me", headers=auth(student_token))).json()["id"]
+
+    first = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": student_id,
+    }, headers=auth(company_token))
+    assert first.status_code == 201
+
+    second = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": student_id,
+    }, headers=auth(company_token))
+    assert second.status_code == 400
+    assert "already invited or applied" in second.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_invite_full_project_blocked(
+    client: AsyncClient, company_token: str, student_token: str
+):
+    project_id = await _create_open_project(client, company_token, max_participants=1)
+    await client.post("/api/v1/auth/register", json={
+        "email": "s3@test.com", "username": "student3",
+        "password": "pass123", "role": "student",
+    })
+    from src.tests.conftest import mock_redis_store
+    for key in list(mock_redis_store):
+        if key.startswith("email_verify:"):
+            token = key.split(":", 1)[1]
+            await client.get(f"/api/v1/auth/verify-email?token={token}")
+    s3 = (await client.post("/api/v1/auth/login",
+                            data={"username": "student3", "password": "pass123"})).json()
+    s3_token = s3["access_token"]
+    apply_r = await client.post("/api/v1/applications/",
+                                json={"project_id": project_id}, headers=auth(s3_token))
+    await client.put(f"/api/v1/applications/{apply_r.json()['id']}/status",
+                     json={"status": "accepted"}, headers=auth(company_token))
+
+    student_id = (await client.get("/api/v1/auth/me", headers=auth(student_token))).json()["id"]
+    r = await client.post("/api/v1/applications/invite", json={
+        "project_id": project_id, "student_id": student_id,
+    }, headers=auth(company_token))
+    assert r.status_code == 400
+    assert "maximum number of participants" in r.json()["detail"]

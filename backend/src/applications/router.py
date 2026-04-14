@@ -5,7 +5,7 @@ from src.users.models import User
 from src.applications.models import ApplicationStatus
 from src.applications import service
 from src.applications.schemas import (
-    ApplicationCreate, ApplicationUpdateStatus, ApplicationResponse,
+    ApplicationCreate, ApplicationInviteCreate, ApplicationUpdateStatus, ApplicationResponse,
 )
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -20,6 +20,16 @@ async def apply(data: ApplicationCreate, bg: BackgroundTasks,
     if owner:
         bg.add_task(send_new_application_email, owner.email, owner.username,
                     project.title, current_user.username)
+    return application
+
+
+@router.post("/invite", response_model=ApplicationResponse, status_code=201)
+async def invite_student(data: ApplicationInviteCreate, bg: BackgroundTasks,
+                         current_user: User = Depends(get_current_user)):
+    application, project, student = await service.invite_student(
+        current_user, data.project_id, data.student_id, data.message,
+    )
+    # Notification + email fan-out is added in Task 4.
     return application
 
 
