@@ -1,14 +1,38 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query, HTTPException
 from src.core.dependencies import get_current_user
-from src.users.models import User
+from src.users.models import User, RoleEnum
 from src.users.schemas import (
     UserResponse, UserUpdate,
     CompanyProfileCreate, CompanyProfileResponse,
     StudentProfileCreate, StudentProfileResponse,
+    StudentSearchResponse,
 )
 from src.users.service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.get("/search", response_model=StudentSearchResponse)
+async def search_students(
+    skills: list[int] = Query(default=[]),
+    min_rating: Optional[float] = Query(None, ge=0, le=5),
+    available: bool = Query(False),
+    q: Optional[str] = Query(None, min_length=1, max_length=100),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in (RoleEnum.company, RoleEnum.admin):
+        raise HTTPException(status_code=403, detail="Only companies can search students")
+    return await UserService().search_students(
+        skill_ids=skills or None,
+        min_rating=min_rating,
+        available=available,
+        q=q,
+        page=page,
+        size=size,
+    )
 
 
 @router.get("/{user_id}", response_model=UserResponse)

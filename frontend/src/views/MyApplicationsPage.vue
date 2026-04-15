@@ -60,12 +60,16 @@ const selected = ref(null)
 const projectTitles = ref({})
 
 const STATUS_LABELS = {
+  invited: 'Invited',
   pending: 'Pending', accepted: 'Accepted', rejected: 'Rejected',
   in_progress: 'In Progress', submitted: 'Submitted',
   revision_requested: 'Revision Requested', approved: 'Approved', completed: 'Completed',
 }
 
 function latestSummary(app) {
+  if (app.status === 'invited' && app.initiator === 'company') {
+    return 'You were invited — awaiting your response'
+  }
   const hist = app.status_history || []
   if (!hist.length) return `Applied ${fmtDate(app.created_at)}`
   const latest = hist[hist.length - 1]

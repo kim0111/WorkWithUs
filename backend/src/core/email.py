@@ -119,3 +119,14 @@ async def send_review_email(to_email: str, username: str, reviewer_name: str, ra
         f'<p style="font-size:24px;color:#e8a838">{stars} ({rating}/5)</p>'
     )
     await _send_smtp(to_email, f"New review from {reviewer_name}", html)
+
+
+async def send_application_invite_email(to_email: str, username: str,
+                                        project_title: str, company_name: str):
+    html = _base_template(
+        "You've been invited to a project",
+        f"<p>Hi <strong>{username}</strong>,</p>"
+        f'<p><strong>{company_name}</strong> has invited you to join <strong>"{project_title}"</strong>.</p>'
+        '<p><a href="http://localhost:3000/my-applications" style="color:#e8a838">Review Invitation →</a></p>'
+    )
+    await _send_smtp(to_email, f"Invitation: {project_title}", html)

@@ -81,3 +81,39 @@ class UserService:
         if not profile:
             raise HTTPException(status_code=404, detail="Student profile not found")
         return await repository.update_student_profile(profile, data)
+
+    async def search_students(self, skill_ids: list[int] | None,
+                              min_rating: float | None, available: bool,
+                              q: str | None, page: int, size: int) -> dict:
+        cache_key = (f"userSearch:{sorted(skill_ids or [])}:{min_rating}:"
+                     f"{int(available)}:{q or ''}:{page}:{size}")
+        cached = await cache_get(cache_key)
+        if cached:
+            return cached
+
+        offset = (page - 1) * size
+        items, total = await repository.search_students(
+            skill_ids, min_rating, available, q, offset, size,
+        )
+
+        result_items = []
+        for u in items:
+            profile = u.student_profile if hasattr(u, "student_profile") else None
+            rating = profile.rating if profile else 0.0
+            completed = profile.completed_projects_count if profile else 0
+            is_available = not await repository.active_app_exists_for(u.id)
+            result_items.append({
+                "id": u.id,
+                "username": u.username,
+                "full_name": u.full_name,
+                "avatar_url": u.avatar_url,
+                "bio": u.bio,
+                "skills": [{"id": s.id, "name": s.name, "category": s.category} for s in u.skills],
+                "rating": rating,
+                "completed_projects_count": completed,
+                "is_available": is_available,
+            })
+
+        payload = {"items": result_items, "total": total, "page": page, "size": size}
+        await cache_set(cache_key, payload, ttl=60)
+        return payload

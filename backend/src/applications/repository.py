@@ -1,4 +1,4 @@
-from src.applications.models import Application, ApplicationStatus
+from src.applications.models import Application, ApplicationStatus, ApplicationInitiator
 
 
 async def get_by_id(app_id: int) -> Application | None:
@@ -34,3 +34,14 @@ async def get_by_project(project_id: int, offset: int, limit: int) -> list[Appli
 
 async def get_by_applicant(applicant_id: int) -> list[Application]:
     return await Application.filter(applicant_id=applicant_id).order_by("-created_at")
+
+
+async def create_invite(project_id: int, student_id: int,
+                        message: str | None) -> Application:
+    return await Application.create(
+        project_id=project_id,
+        applicant_id=student_id,
+        cover_letter=message,
+        status=ApplicationStatus.invited,
+        initiator=ApplicationInitiator.company,
+    )

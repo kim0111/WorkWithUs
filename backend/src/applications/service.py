@@ -11,6 +11,7 @@ from src.teams.models import TeamRole
 
 
 VALID_TRANSITIONS = {
+    ApplicationStatus.invited: [ApplicationStatus.accepted, ApplicationStatus.rejected],
     ApplicationStatus.pending: [ApplicationStatus.accepted, ApplicationStatus.rejected],
     ApplicationStatus.accepted: [ApplicationStatus.in_progress],
     ApplicationStatus.in_progress: [ApplicationStatus.submitted],
@@ -77,10 +78,17 @@ async def update_status(app_id: int, new_status: ApplicationStatus, note: str | 
                       ApplicationStatus.completed}
     applicant_statuses = {ApplicationStatus.in_progress, ApplicationStatus.submitted}
 
-    if new_status in owner_statuses and not (is_owner or is_admin):
-        raise HTTPException(status_code=403, detail="Only project owner can perform this action")
-    if new_status in applicant_statuses and not is_applicant:
-        raise HTTPException(status_code=403, detail="Only applicant can perform this action")
+    if application.status == ApplicationStatus.invited:
+        # Student accepts or declines. Owner may only "withdraw" (reject).
+        if new_status == ApplicationStatus.accepted and not (is_applicant or is_admin):
+            raise HTTPException(status_code=403, detail="Only the invited student can accept")
+        if new_status == ApplicationStatus.rejected and not (is_applicant or is_owner or is_admin):
+            raise HTTPException(status_code=403, detail="Only the student or project owner can cancel an invite")
+    else:
+        if new_status in owner_statuses and not (is_owner or is_admin):
+            raise HTTPException(status_code=403, detail="Only project owner can perform this action")
+        if new_status in applicant_statuses and not is_applicant:
+            raise HTTPException(status_code=403, detail="Only applicant can perform this action")
 
     allowed = VALID_TRANSITIONS.get(application.status, [])
     if new_status not in allowed:
@@ -131,3 +139,40 @@ async def get_project_applications(project_id: int, page: int, size: int,
 
 async def get_my_applications(user: User) -> list[Application]:
     return await repository.get_by_applicant(user.id)
+
+
+async def invite_student(user: User, project_id: int, student_id: int,
+                         message: str | None) -> tuple[Application, Project, User]:
+    if user.role != RoleEnum.company:
+        raise HTTPException(status_code=403, detail="Only companies can send invites")
+
+    project = await Project.filter(id=project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not your project")
+    if project.status.value != "open":
+        raise HTTPException(status_code=400, detail="Project is not open")
+
+    student = await User.filter(id=student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if student.role != RoleEnum.student:
+        raise HTTPException(status_code=400, detail="Target user is not a student")
+
+    if await repository.exists(project_id, student_id):
+        raise HTTPException(status_code=400, detail="Student already invited or applied to this project")
+
+    active_count = await repository.count_active(project_id)
+    if active_count >= project.max_participants:
+        raise HTTPException(status_code=400, detail="Project has reached maximum number of participants")
+
+    application = await repository.create_invite(project_id, student_id, message)
+    application.status_history = _append_history(application, "invited", user, None)
+    await repository.save(application)
+
+    await log_activity(user.id, "invite",
+                       f"Invited {student.username} to '{project.title}'",
+                       "application", application.id)
+
+    return application, project, student
