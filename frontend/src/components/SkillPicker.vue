@@ -39,7 +39,7 @@ import { useToastStore } from '@/stores/toast'
 
 const props = defineProps({
   skills: { type: Array, default: () => [] },
-  userId: { type: Number, required: true },
+  userId: { type: Number, default: null },
   editable: { type: Boolean, default: false },
 })
 
@@ -90,6 +90,12 @@ onUnmounted(() => {
 })
 
 async function addSkill(skillId) {
+  if (!props.userId) {
+    const skill = allSkills.value.find(s => s.id === skillId)
+    if (skill) emit('updated', [...props.skills, skill])
+    showDropdown.value = false
+    return
+  }
   try {
     await usersAPI.addSkill(props.userId, skillId)
     showDropdown.value = false
@@ -100,6 +106,10 @@ async function addSkill(skillId) {
 }
 
 async function removeSkill(skillId) {
+  if (!props.userId) {
+    emit('updated', props.skills.filter(s => s.id !== skillId))
+    return
+  }
   try {
     await usersAPI.removeSkill(props.userId, skillId)
     emit('updated')

@@ -112,7 +112,7 @@ watch(() => props.modelValue, (open) => {
     reset()
     loadProjects()
   }
-})
+}, { immediate: true })
 </script>
 
 <style scoped>

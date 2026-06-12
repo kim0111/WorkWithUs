@@ -76,7 +76,17 @@ async function go() {
   try {
     registeredUser.value = await auth.register(form)
   }
-  catch (e) { err.value = e.response?.data?.detail || 'Failed' }
+  catch (e) {
+    const detail = e.response?.data?.detail
+    if (Array.isArray(detail)) {
+      err.value = detail.map(d => {
+        const field = d.loc?.at(-1)
+        return d.msg.replace(/^String should/i, `${field} should`)
+      }).join('; ')
+    } else {
+      err.value = detail || 'Registration failed. Please try again.'
+    }
+  }
   finally { loading.value = false }
 }
 </script>
