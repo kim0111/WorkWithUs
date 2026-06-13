@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     EMAIL_FROM_NAME: str = "NexusHub"
     EMAIL_VERIFICATION_REQUIRED: bool = True
 
+    # Public base URL of the frontend — used in email links
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
