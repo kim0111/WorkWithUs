@@ -9,7 +9,9 @@
         </div>
         <h1>{{ project.title }}</h1>
         <div class="detail-meta">
-          <span><span class="material-icons-round">person</span>Owner #{{ project.owner_id }}</span>
+          <router-link :to="`/profile/${project.owner_id}`" class="owner-link">
+            <span class="material-icons-round">{{ project.is_student_project ? 'person' : 'business' }}</span>{{ project.owner_name || `Owner #${project.owner_id}` }}
+          </router-link>
           <span><span class="material-icons-round">group</span>{{ project.max_participants }} spots</span>
           <span v-if="project.deadline"><span class="material-icons-round">schedule</span>{{ fmtDate(project.deadline) }}</span>
           <span><span class="material-icons-round">calendar_today</span>{{ fmtDate(project.created_at) }}</span>
@@ -413,6 +415,8 @@ onMounted(load)
 .detail-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
 .detail-meta > span { display: flex; align-items: center; gap: 4px; font-size: .8125rem; color: var(--gray-400); }
 .detail-meta .material-icons-round { font-size: 15px; }
+.owner-link { display: flex; align-items: center; gap: 4px; font-size: .8125rem; color: var(--gray-600); font-weight: 500; text-decoration: none; }
+.owner-link:hover { color: var(--accent); }
 .detail-actions { display: flex; gap: 8px; align-items: center; }
 .detail-section { margin-bottom: 2rem; overflow: hidden; }
 .detail-section h2 { font-size: 1.1rem; margin-bottom: .75rem; }

@@ -21,9 +21,15 @@
               <span class="material-icons-round">{{ r.icon }}</span>{{ r.label }}
             </button>
           </div>
-          <div class="input-group"><label>Full Name</label><input class="input" v-model="form.full_name" /></div>
+          <div class="input-group">
+            <label>{{ isCompany ? 'Contact Name' : 'Full Name' }}</label>
+            <input class="input" v-model="form.full_name" :placeholder="isCompany ? 'Who manages this account' : ''" />
+          </div>
           <div class="row-2">
-            <div class="input-group"><label>Username</label><input class="input" v-model="form.username" required /></div>
+            <div class="input-group">
+              <label>Username <span v-if="isCompany" class="label-hint">(this becomes your company name)</span></label>
+              <input class="input" v-model="form.username" :placeholder="isCompany ? 'Your company name' : ''" required />
+            </div>
             <div class="input-group"><label>Email</label><input class="input" type="email" v-model="form.email" required /></div>
           </div>
           <div class="input-group"><label>Password</label><input class="input" type="password" v-model="form.password" required /></div>
@@ -63,7 +69,7 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const loading = ref(false)
@@ -71,6 +77,7 @@ const err = ref('')
 const registeredUser = ref(null)
 const roles = [{ value: 'student', label: 'Student', icon: 'school' }, { value: 'company', label: 'Company', icon: 'business' }]
 const form = reactive({ email: '', username: '', password: '', full_name: '', role: 'student' })
+const isCompany = computed(() => form.role === 'company')
 async function go() {
   err.value = ''; loading.value = true
   try {
@@ -123,6 +130,7 @@ async function go() {
 .role-btn .material-icons-round { font-size: 18px; }
 .role-btn:hover { border-color: var(--gray-400); }
 .role-btn.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent-text); }
+.label-hint { color: var(--gray-400); font-weight: 400; font-size: .75rem; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .full-w { width: 100%; justify-content: center; }
 .error-msg {

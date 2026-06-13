@@ -5,6 +5,18 @@ from src.projects.models import Project, ProjectStatus
 from src.users.models import User, RoleEnum
 
 
+def _attach_owner(project: Project) -> Project:
+    """Expose the owner's display name (company name for companies) on the project."""
+    owner = project.owner
+    profile = getattr(owner, "company_profile", None)
+    if profile and profile.company_name:
+        project.owner_name = profile.company_name
+    else:
+        project.owner_name = owner.full_name or owner.username
+    project.owner_avatar = owner.avatar_url
+    return project
+
+
 async def create_project(user: User, title: str, description: str,
                          max_participants: int, deadline, skill_ids: list[int],
                          is_student_project: bool) -> Project:
@@ -20,7 +32,7 @@ async def create_project(user: User, title: str, description: str,
         title, description, user.id, max_participants, deadline, is_student_project, skill_ids,
     )
     await cache_delete_pattern("projects:*")
-    return project
+    return _attach_owner(project)
 
 
 async def list_projects(page: int, size: int, status: ProjectStatus | None,
@@ -30,15 +42,17 @@ async def list_projects(page: int, size: int, status: ProjectStatus | None,
     q = repository.build_filter(status, owner_id, is_student_project, search, skill_ids)
     total = await q.distinct().count()
     order = "deadline" if sort == "deadline" else "-created_at"
-    items = await q.prefetch_related("required_skills", "attachments").distinct().order_by(order).offset((page - 1) * size).limit(size)
-    return {"items": items, "total": total, "page": page, "size": size}
+    items = await q.prefetch_related(
+        "required_skills", "attachments", "owner__company_profile"
+    ).distinct().order_by(order).offset((page - 1) * size).limit(size)
+    return {"items": [_attach_owner(p) for p in items], "total": total, "page": page, "size": size}
 
 
 async def get_project(project_id: int) -> Project:
     project = await repository.get_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    return _attach_owner(project)
 
 
 async def update_project(project_id: int, data: dict, user: User) -> Project:

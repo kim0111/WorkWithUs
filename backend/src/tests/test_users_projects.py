@@ -83,6 +83,7 @@ async def test_create_project_company(client: AsyncClient, company_token: str):
     assert r.status_code == 201
     assert r.json()["title"] == "Test Project"
     assert r.json()["status"] == "open"
+    assert r.json()["owner_name"] == "company1"
 
 
 @pytest.mark.asyncio
@@ -93,6 +94,7 @@ async def test_create_student_project(client: AsyncClient, student_token: str):
     }, headers=auth(student_token))
     assert r.status_code == 201
     assert r.json()["is_student_project"] is True
+    assert r.json()["owner_name"] == "student1"
 
 
 @pytest.mark.asyncio
@@ -111,6 +113,7 @@ async def test_list_projects(client: AsyncClient, company_token: str):
     r = await client.get("/api/v1/projects/")
     assert r.status_code == 200
     assert r.json()["total"] >= 1
+    assert r.json()["items"][0]["owner_name"] == "company1"
 
 
 @pytest.mark.asyncio
@@ -131,6 +134,7 @@ async def test_get_project(client: AsyncClient, company_token: str):
     r = await client.get(f"/api/v1/projects/{pid}")
     assert r.status_code == 200
     assert r.json()["title"] == "Get Me"
+    assert r.json()["owner_name"] == "company1"
 
 
 @pytest.mark.asyncio

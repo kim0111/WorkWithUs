@@ -26,7 +26,9 @@ def build_filter(status: ProjectStatus | None = None, owner_id: int | None = Non
 
 
 async def get_by_id(project_id: int) -> Project | None:
-    return await Project.filter(id=project_id).prefetch_related("required_skills", "attachments").first()
+    return await Project.filter(id=project_id).prefetch_related(
+        "required_skills", "attachments", "owner__company_profile"
+    ).first()
 
 
 async def create_project(title: str, description: str, owner_id: int,
@@ -40,7 +42,7 @@ async def create_project(title: str, description: str, owner_id: int,
     if skill_ids:
         skills = await Skill.filter(id__in=skill_ids)
         await project.required_skills.add(*skills)
-    await project.fetch_related("required_skills", "attachments")
+    await project.fetch_related("required_skills", "attachments", "owner__company_profile")
     return project
 
 

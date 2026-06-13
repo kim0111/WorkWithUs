@@ -8,6 +8,9 @@
       <span class="card-date">{{ fmtDate(project.created_at) }}</span>
     </div>
     <h3 class="card-title">{{ project.title }}</h3>
+    <p v-if="project.owner_name" class="card-owner">
+      <span class="material-icons-round">{{ project.is_student_project ? 'person' : 'business' }}</span>{{ project.owner_name }}
+    </p>
     <p class="card-desc">{{ project.description?.length > 120 ? project.description.slice(0,120) + '...' : project.description }}</p>
     <div v-if="project.required_skills?.length" class="card-skills">
       <span v-for="s in project.required_skills.slice(0,4)" :key="s.id" class="skill-tag">{{ s.name }}</span>
@@ -31,6 +34,8 @@ function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'
 .card-badges { display: flex; gap: 6px; }
 .card-date { font-size: .75rem; color: var(--gray-400); }
 .card-title { font-size: 1rem; line-height: 1.4; color: var(--gray-900); overflow-wrap: break-word; word-break: break-word; }
+.card-owner { display: flex; align-items: center; gap: 4px; font-size: .8125rem; color: var(--gray-600); font-weight: 500; margin-top: -4px; }
+.card-owner .material-icons-round { font-size: 15px; color: var(--gray-400); }
 .card-desc { font-size: .8125rem; color: var(--gray-500); line-height: 1.5; overflow-wrap: break-word; word-break: break-word; }
 .card-skills { display: flex; flex-wrap: wrap; gap: 4px; }
 .card-footer { display: flex; gap: 16px; padding-top: 10px; border-top: 1px solid var(--gray-100); margin-top: auto; }

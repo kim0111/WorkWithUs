@@ -40,6 +40,8 @@ class ProjectResponse(BaseModel):
     title: str
     description: str
     owner_id: int
+    owner_name: Optional[str] = None
+    owner_avatar: Optional[str] = None
     status: ProjectStatus
     max_participants: int
     deadline: Optional[datetime] = None
